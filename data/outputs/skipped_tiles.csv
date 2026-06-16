@@ -1,0 +1,2 @@
+url,filename,reason,total_points,ground_points,veg_points
+https://rockyweb.usgs.gov/vdelivery/Datasets/Staged/Elevation/LPC/Projects/Virginia_SANDY_QL2_LiDAR/VA_Sandy_2014/LAZ/USGS_LPC_Virginia_SANDY_QL2_LiDAR_17SQC2929.laz,USGS_LPC_Virginia_SANDY_QL2_LiDAR_17SQC2929_chm.tif,below_height_threshold,396248,140579,1

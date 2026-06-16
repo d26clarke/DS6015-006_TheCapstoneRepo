@@ -1,0 +1,63 @@
+Soil Moisture Data in Tree Canopy Stress Management — Decision Examples for Soil and Water Conservation Districts
+
+Soil and Water Conservation Districts (SWCDs) — such as the Albemarle Soil and Water Conservation District — operate at the county level and are the primary local agencies responsible for natural resource stewardship. SMAP-derived soil moisture data, when integrated with LiDAR-based tree canopy metrics, supports a broad range of their operational and planning decisions.
+
+Category 1 — Drought Monitoring and Early Stress Detection
+
+Prolonged soil moisture deficits are the primary driver of tree canopy stress in Central Virginia's mixed deciduous-conifer landscape. SWCDs use soil moisture data to move from reactive to anticipatory management.
+
+Decision Examples:
+
+Drought stress alert thresholds. When SMAP soil moisture in a watershed falls below a defined threshold (e.g., 0.10 m³/m³ for two or more consecutive weeks during the growing season), the district issues a tree canopy stress advisory to landowners, foresters, and municipal parks departments. This triggers pre-emptive irrigation of high-value urban trees and prioritized inspection of conservation easement parcels.
+
+Prioritizing field inspection resources. With limited staff, SWCDs cannot inspect every parcel. By overlaying SMAP soil moisture deficit maps against LiDAR canopy height maps, staff can rank parcels by combined stress risk — directing field visits first to areas where both low soil moisture and reduced canopy height are co-occurring.
+
+Distinguishing drought stress from disease or pest damage. A canopy height decline detected between two LiDAR collection years (change detection) could reflect drought, emerald ash borer, sudden oak death, or development clearing. If SMAP soil moisture was consistently below normal during the same period, drought stress becomes the leading hypothesis, narrowing the investigation and reducing unnecessary pesticide applications.
+
+
+Category 2 — Reforestation and Planting Site Selection
+
+Reforestation success is strongly dependent on soil moisture availability during the establishment period (typically the first 1–3 years after planting). SWCDs manage reforestation programs under the Conservation Reserve Program (CRP), Reforestation of Timberlands (RT), and the Virginia Conservation Lands Needs Assessment (VCLNA).
+
+Decision examples:
+
+Species selection by soil moisture regime. SMAP time-series data characterises each planting site as consistently dry, seasonally wet, or mesic. This directly informs species selection — for example, recommending drought-tolerant species (Virginia pine, post oak) on persistently dry sites versus moisture-tolerant species (red maple, sycamore, swamp white oak) on sites with high seasonal soil moisture.
+
+Planting window optimization. Bare-root seedling survival rates are highest when soil moisture is adequate at planting. Districts can use near-real-time SMAP data to advise contractors on optimal planting windows — avoiding both frozen/saturated soil and drought conditions — reducing seedling mortality and replanting costs.
+
+Post-planting survival monitoring. By tracking SMAP soil moisture at reforestation sites through the first growing season and correlating it with canopy establishment rates from subsequent LiDAR or aerial imagery, districts can identify which sites are underperforming due to moisture stress and target supplemental irrigation or mulching interventions.
+
+
+Category 3 — Riparian Buffer Program Management
+
+Riparian buffers — strips of trees and vegetation along streams — are a core SWCD program under the Chesapeake Bay Preservation Act and Virginia's Agricultural BMP Program. Their effectiveness depends on both canopy cover and soil moisture dynamics.
+
+Decision examples:
+
+Buffer effectiveness assessment. Riparian buffers function as nutrient and sediment filters partly through soil moisture-driven biological uptake. A buffer with adequate canopy cover (confirmed by LiDAR) but chronically low soil moisture may have reduced nitrogen uptake capacity. SWCDs can flag these buffers for soil amendment or species diversification to improve hydrological function.
+
+Buffer establishment priority ranking. When allocating cost-share funds for new riparian buffer installations, districts can prioritise stream reaches where SMAP data shows high seasonal soil moisture variability — indicating active hydrological exchange between the stream and the adjacent landscape — where buffers will deliver the greatest water quality benefit.
+
+Category 4 — Wildfire and Forest Health Risk Assessment
+
+Virginia's western counties, including Albemarle, have experienced increasing wildfire risk as drought frequency has risen. SWCDs coordinate with the Virginia Department of Forestry (VDOF) on forest health and fire management.
+
+Decision examples:
+
+Fire risk index computation. SWCDs and VDOF use soil moisture as a key input to the Keetch-Byram Drought Index (KBDI) and similar fire danger rating systems. SMAP data provides spatially continuous soil moisture estimates that supplement sparse weather station networks, improving the spatial resolution of fire risk maps across forested landscapes.
+
+Prescribed burn scheduling. Controlled burns are used to reduce fuel loads and improve forest health. The decision of when and where to conduct a prescribed burn requires soil moisture to be within a narrow acceptable range — wet enough to prevent escape, dry enough for adequate combustion. SMAP data provides a county-wide soil moisture baseline to support burn window identification.
+
+Post-drought canopy mortality mapping. Following a drought year, SWCDs can overlay SMAP cumulative moisture deficit maps against LiDAR change detection outputs to identify areas of likely canopy mortality — prioritizing salvage harvest recommendations and replanting plans before invasive species colonise the gaps.
+
+Category 5 — Agricultural and Urban Tree Canopy Policy
+
+SWCDs advise local governments on land use decisions affecting tree canopy, particularly under Albemarle County's Tree Canopy Ordinance and the Virginia Stormwater Management Program (VSMP).
+
+Decision examples:
+
+Development permit review. When reviewing grading and clearing permits, SWCDs can use SMAP soil moisture data to identify parcels where existing canopy is providing active evapotranspiration and stormwater interception functions. Removal of canopy on high-soil-moisture sites has disproportionate hydrological impact — this evidence supports stronger mitigation requirements or canopy preservation conditions.
+
+Urban heat island and canopy equity analysis. Urban areas with low soil moisture and low canopy cover are most vulnerable to heat stress. SWCDs can combine SMAP data with LiDAR canopy cover maps and census demographic data to identify environmental justice priority areas for urban tree planting programs — directing resources to communities with both the greatest canopy deficit and the greatest heat-moisture stress exposure.
+
+

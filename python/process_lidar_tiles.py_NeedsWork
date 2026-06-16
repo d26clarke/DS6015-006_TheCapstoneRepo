@@ -1,0 +1,624 @@
+"""
+procewss_lidar_tiles.py
+=======================
+Process LiDAR Point Cloud (.laz / .copc.laz) and DEM (.tif) files
+from the VGIN-exported CentralVA_LiDAR_SelectedTiles.csv.
+
+CSV structure (actual columns):
+  VComment    - "Current" or "Replaced VLPID..." (superseded tiles)
+  ProjectYea  - Collection year (2014, 2016, 2018, 2019, 2020)
+  OBJECTID_1  - Internal ArcGIS object ID
+  VLPID       - VGIN LiDAR Project ID
+  TileName    - Tile identifier (e.g. 17SQB485965)
+  PointCloud  - Host agency: USGS or NOAA
+  PointClo_1  - File format: LAZ (all rows)
+  PointClo_2  - HTML anchor tag containing the LPC download URL
+  DEMHost     - Host agency for DEM: USGS or blank (no DEM available)
+  DEMDownloa  - HTML anchor tag containing the DEM download URL (blank if no DEM)
+  ShapeSTAre, ShapeSTLen, Shape_Length, Shape_Area - geometry fields (ignored)
+
+Usage:
+  # Process LiDAR Point Clouds only (recommended first step):
+  python process_lidar_tiles.py --csv CentralVA_LiDAR_SelectedTiles.csv --lpc-only
+
+  # Process both LPC and DEM files:
+  python process_lidar_tiles.py --csv CentralVA_LiDAR_SelectedTiles.csv
+
+  # Process only tiles from a specific project year:
+  python process_lidar_tiles.py --csv CentralVA_LiDAR_SelectedTiles.csv --year 2019
+
+  # Process only "Current" tiles (skip superseded/replaced tiles):
+  python process_lidar_tiles.py --csv CentralVA_LiDAR_SelectedTiles.csv --current-only
+
+  # Dry run (print URLs without downloading):
+  python process_lidar_tiles.py --csv CentralVA_LiDAR_SelectedTiles.csv --dry-run
+"""
+
+import argparse
+import os
+import io
+import re
+import sys
+import time
+import pandas as pd
+import requests
+from pathlib import Path
+
+import laspy
+import numpy as np
+
+from scipy.interpolate import griddata
+
+import rasterio
+from rasterio.transform import from_origin
+
+
+# ---------------------------------------------------------------------------
+# URL extraction
+# ---------------------------------------------------------------------------
+
+def extract_url(html_cell: str) -> str | None:
+    """
+    Extract the first HTTP/HTTPS URL from an HTML anchor tag cell.
+
+    The CSV stores URLs as HTML like:
+        <a href=""https://rockyweb.usgs.gov/.../tile.laz"">Download LPC</a>
+
+    The double-quote encoding is an ArcGIS CSV export artefact.
+    """
+    if not isinstance(html_cell, str) or html_cell.strip() == "":
+        return None
+    match = re.search(r'(https?://[^\s"<>]+)', html_cell)
+    return match.group(1) if match else None
+
+
+# ---------------------------------------------------------------------------
+# Process Laz file
+# ---------------------------------------------------------------------------
+
+# def process_file(url: str, geotiff_filename: str, retries: int = 3, timeout: int = 120) -> bool:
+#     """
+#     Process a single LAZ file with retry logic.
+#     Streams response content directly into laspy without buffering
+#     the full compressed file in memory first.
+#     Returns True on success, False on failure.
+#     """
+    
+#     for attempt in range(1, retries + 1):
+#         try:
+#             print(f"  [GET]   {url}")
+#             response = requests.get(url, stream=True, timeout=timeout)
+#             response.raise_for_status()
+
+#             # Stream directly into BytesIO chunk-by-chunk to avoid
+#             # holding the full response body in response.content
+#             buffer = io.BytesIO()
+#             for chunk in response.iter_content(chunk_size=1024 * 1024):  # 1 MB chunks
+#                 buffer.write(chunk)
+#             buffer.seek(0)
+
+#             # Read the LAZ data directly from memory without decompression
+#             #las_file = laspy.LasFile(file=las_stream, version=1.4, point_format=4)
+#             #print(f"  [OK]    {dest_path.name}  ({las_file.header.point_count} points)")
+
+        
+#             # Read the LAZ data directly from memory 
+#             # Open and decompress LAZ from the in-memory buffer
+#             with laspy.open(buffer, laz_backend=laspy.LazBackend.Laszip) as fh:
+#                 las = fh.read()
+
+#                 # Example processing: Access X, Y, Z coordinates 
+#                 #print(f"Points count: {len(las.points)}") 
+#                 #print(f"X coordinates: {las.x}") 
+#                 #print(f"Y coordinates: {las.y}") 
+#                 #print(f"Z coordinates: {las.z}")
+
+#                 # Access point attributes
+#                 print(f"  [OK]    Points count:  ({len(las.points):,} points)")
+#                 print(f"          X range: {las.x.min():.2f} – {las.x.max():.2f}")
+#                 print(f"          Y range: {las.y.min():.2f} – {las.y.max():.2f}")
+#                 print(f"          Z range: {las.z.min():.2f} – {las.z.max():.2f}")
+
+#                 # Extract X, Y, Z coordinates and classification codes
+#                 x: np.ndarray = las.x.scaled_array()   # Easting (meters, projected CRS)
+#                 y: np.ndarray = las.y.scaled_array()   # Northing (meters, projected CRS)
+#                 z: np.ndarray = las.z.scaled_array()   # Elevation (meters above sea level)
+
+#                 # ASPRS standard: 2 = Ground, 5 = High Vegetation
+#                 classification: np.ndarray = np.array(las.classification)
+
+#                 print(f"Total points: {len(x):,}")
+#                 print(f"Ground points: {np.sum(classification == 2):,}")
+#                 print(f"Vegetation points: {np.sum(classification == 5):,}")
+
+#                 # Separate Ground and Vegetation Points
+#                 # Ground points only (for DTM)
+#                 ground_mask = classification == 2
+#                 x_ground = x[ground_mask]
+#                 y_ground = y[ground_mask]
+#                 z_ground = z[ground_mask]
+
+#                 # All vegetation points (for DSM — use all returns above ground)
+#                 veg_mask = classification >= 3
+#                 x_veg = x[veg_mask]
+#                 y_veg = y[veg_mask]
+#                 z_veg = z[veg_mask]
+
+#                 # Define the Raster Grid
+#                 # Define output resolution in meters (1 m is standard for VGIN data)
+#                 resolution = 1.0
+
+#                 # Compute grid extent
+#                 x_min, x_max = x.min(), x.max()
+#                 y_min, y_max = y.min(), y.max()
+
+#                 # Number of columns and rows
+#                 ncols = int(np.ceil((x_max - x_min) / resolution))
+#                 nrows = int(np.ceil((y_max - y_min) / resolution))
+
+#                 print(f"Grid size: {nrows} rows x {ncols} cols")
+
+#                 # Rasterize Ground Points into a DTM
+#                 # Create a regular grid of coordinates
+#                 grid_x = np.linspace(x_min, x_max, ncols)
+#                 grid_y = np.linspace(y_min, y_max, nrows)
+#                 grid_xx, grid_yy = np.meshgrid(grid_x, grid_y)
+
+#                 # Interpolate ground elevations onto the grid
+#                 # Use 'linear' for speed; 'cubic' for smoother results
+#                 dtm = griddata(
+#                     points=np.column_stack([x_ground, y_ground]),
+#                     values=z_ground,
+#                     xi=(grid_xx, grid_yy),
+#                     method='linear',
+#                     fill_value=np.nan
+#                 )
+
+#                 print(f"DTM shape: {dtm.shape}, min: {dtm.min():.2f} m, max: {dtm.max():.2f} m")
+
+#                 # Rasterize Vegetation Points into a DSM (Maximum Return)
+
+#                 # Initialize DSM with -infinity (we want the MAXIMUM Z per cell)
+#                 dsm = np.full((nrows, ncols), -np.inf)
+
+#                 # Convert point coordinates to grid cell indices
+#                 col_idx = ((x_veg - x_min) / resolution).astype(int)
+#                 row_idx = ((y_max - y_veg) / resolution).astype(int)  # Note: Y axis is flipped
+
+#                 # Clip indices to grid bounds
+#                 valid = (col_idx >= 0) & (col_idx < ncols) & (row_idx >= 0) & (row_idx < nrows)
+#                 col_idx = col_idx[valid]
+#                 row_idx = row_idx[valid]
+#                 z_veg_valid = z_veg[valid]
+
+#                 # Assign maximum Z value to each cell
+#                 np.maximum.at(dsm, (row_idx, col_idx), z_veg_valid)
+
+#                 # Replace -inf (no vegetation return) with NaN
+#                 dsm[dsm == -np.inf] = np.nan
+
+#                 # Compute the CHM
+
+#                 # CHM = DSM - DTM
+#                 chm = dsm - dtm
+
+#                 # Clip negative values (artefacts from interpolation errors)
+#                 chm = np.where(chm < 0, 0, chm)
+
+#                 # Optionally clip unrealistic heights (e.g., > 60 m for Central Virginia)
+#                 chm = np.where(chm > 60, np.nan, chm)
+
+#                 print(f"CHM shape: {chm.shape}")
+#                 print(f"Max canopy height: {np.nanmax(chm):.1f} m")
+#                 print(f"Mean canopy height: {np.nanmean(chm):.1f} m")
+
+#                 # Save the CHM as a GeoTIFF File
+
+#                 # Define the affine transform (maps pixel indices to real-world coordinates)
+#                 transform = from_origin(x_min, y_max, resolution, resolution)
+
+#                 # Write to GeoTIFF
+#                 with rasterio.open(
+#                     "../../data/outputs/GeoTIFF_files/albemarle_county/" + geotiff_filename,
+#                     mode="w",
+#                     driver="GTiff",
+#                     height=nrows,
+#                     width=ncols,
+#                     count=1,
+#                     dtype=chm.dtype,
+#                     crs="EPSG:32618",   # UTM Zone 18N — standard for Central Virginia
+#                     transform=transform,
+#                     nodata=np.nan
+#                 ) as dst:
+#                     dst.write(chm, 1)
+
+#                 print("CHM saved to ../../data/outputs/GeoTIFF_files/albemarle_county/" + geotiff_filename)
+
+#             return True
+
+#         except requests.exceptions.RequestException as e:
+#             print(f"  [WARN]  Attempt {attempt}/{retries} failed: {e}")
+#             if attempt < retries:
+#                 time.sleep(5 * attempt)
+
+#     print(f"  [FAIL]  Giving up on: {url}")
+#     return False
+
+def process_file(url: str, geotiff_filename: str, retries: int = 3, timeout: int = 120) -> bool:
+    """
+    Process a single LAZ file with retry logic.
+    Streams response content directly into laspy without buffering
+    the full compressed file in memory first.
+    Returns True on success, False on failure.
+    """
+
+    for attempt in range(1, retries + 1):
+        try:
+            t_attempt_start = time.perf_counter()
+
+            # ---- Stage 1: HTTP Download ----
+            t0 = time.perf_counter()
+            print(f"  [GET]   {url}")
+            response = requests.get(url, stream=True, timeout=timeout)
+            response.raise_for_status()
+
+            buffer = io.BytesIO()
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                buffer.write(chunk)
+            buffer.seek(0)
+            t_download = time.perf_counter() - t0
+            print(f"  [TIME]  Download:        {t_download:.2f}s  ({buffer.tell() / 1e6:.1f} MB)")
+
+            # ---- Stage 2: LAZ Decompression ----
+            t0 = time.perf_counter()
+            with laspy.open(buffer, laz_backend=laspy.LazBackend.Laszip) as fh:
+                las = fh.read()
+            t_decompress = time.perf_counter() - t0
+            print(f"  [TIME]  LAZ decompress:  {t_decompress:.2f}s  ({len(las.points):,} points)")
+
+            # ---- Stage 3: Point Extraction ----
+            t0 = time.perf_counter()
+            x: np.ndarray = las.x.scaled_array()
+            y: np.ndarray = las.y.scaled_array()
+            z: np.ndarray = las.z.scaled_array()
+            classification: np.ndarray = np.array(las.classification)
+
+            # ---- Classification Diagnostic ----
+            total_points = len(x)
+            ground_points = int(np.sum(classification == 2))
+            veg_points_raw = int(np.sum(classification >= 3))
+            unclassified_points = int(np.sum(classification <= 1))
+
+            print(f"  [OK]    Points count:  ({total_points:,} points)")
+            print(f"          X range: {las.x.min():.2f} – {las.x.max():.2f}")
+            print(f"          Y range: {las.y.min():.2f} – {las.y.max():.2f}")
+            print(f"          Z range: {las.z.min():.2f} – {las.z.max():.2f}")
+            print(f"Total points: {total_points:,}")
+            print(f"Ground points (Class 2): {ground_points:,}")
+            print(f"  Vegetation (class≥3): {veg_points_raw:,}")
+            print(f"  Unclassified (class≤1): {unclassified_points:,}")
+
+            # Level 1: Tile is completely empty — skip immediately
+            if total_points == 0:
+                print(f"  [SKIP]  Tile is empty (0 points). Skipping: {geotiff_filename}")
+                return True   # Return True — not a failure, just nothing to process
+
+            # Level 2: All points are unclassified — classification was not run
+            if unclassified_points == total_points:
+                print(f"  [WARN]  All {total_points:,} points are unclassified (class 0 or 1).")
+                print(f"          Classification was likely not applied to this tile.")
+                print(f"          Falling back to all-return DSM (no DTM subtraction possible).")
+                # Option: log the tile URL to a separate file for manual review
+                with open("../logs/unclassified_tiles.log", "a") as log:
+                    log.write(f"{url}\t{geotiff_filename}\t{total_points}\n")
+                return True   # Skip CHM generation but do not treat as failure
+
+            # Level 3: No vegetation points but ground points exist — genuinely non-vegetated tile
+            if veg_points_raw == 0:
+                print(f"  [SKIP]  Zero vegetation points. Tile is likely non-vegetated "
+                    f"(impervious surface or open water). Skipping CHM: {geotiff_filename}")
+                with open("../logs/no_vegetation_tiles.log", "a") as log:
+                    log.write(f"{url}\t{geotiff_filename}\t{total_points}\t{ground_points}\n")
+                return True   # Not a failure — valid tile, just no canopy data
+            
+        
+            # Vegetation Height Filter
+
+            # Separate ground and raw vegetation arrays
+            ground_mask = classification == 2
+            x_ground = x[ground_mask]
+            y_ground = y[ground_mask]
+            z_ground = z[ground_mask]
+
+            # All points classified as vegetation (ASPRS class >= 3)
+            veg_mask_raw = classification >= 3
+            x_veg_raw = x[veg_mask_raw]
+            y_veg_raw = y[veg_mask_raw]
+            z_veg_raw = z[veg_mask_raw]
+
+            # Step 2: Apply 2-meter minimum height filter
+            # Use raw Z values relative to approximate ground level
+            # (z_ground median is a robust ground reference)
+            if ground_points > 0:
+                ground_reference = np.median(z_ground)   # Robust ground elevation estimate
+            else:
+                ground_reference = z.min()               # Fallback if no ground points
+
+            # Height above ground for all vegetation points
+            veg_height_above_ground = z_veg_raw - ground_reference
+
+            MIN_CANOPY_HEIGHT_M = 2.0   # Minimum height above ground to be considered tree canopy
+
+            # Apply the height filter
+            height_filter = veg_height_above_ground >= MIN_CANOPY_HEIGHT_M
+
+            x_veg = x_veg_raw[height_filter]
+            y_veg = y_veg_raw[height_filter]
+            z_veg = z_veg_raw[height_filter]
+
+            veg_points_filtered = len(x_veg)
+            print(f"  [INFO]  Vegetation points (raw):      {veg_points_raw:,}")
+            print(f"          Vegetation points (>= {MIN_CANOPY_HEIGHT_M:.0f} m): "
+                  f"{veg_points_filtered:,}")
+            print(f"          Shrubs/low veg removed:        "
+                  f"{veg_points_raw - veg_points_filtered:,}")
+            t_filter = time.perf_counter() - t0
+            print(f"  [TIME]  Height filter:     {t_filter:6.2f}s")
+
+            if veg_points_filtered == 0:
+                print(f"  [SKIP]  {veg_points_raw:,} vegetation points found but all below 2 m "
+                    f"(shrubs/low cover only). No tree canopy present.")
+                with open("../logs/below_height_threshold.log", "a") as log:
+                    log.write(f"{url}\t{geotiff_filename}\t{total_points}\t{ground_points}\n")
+                return True   # Not a failure — valid tile, just no canopy data
+            
+            # Proceed with CHM generation only if vegetation points exist
+            print(f"  [OK]    Proceeding with CHM generation ({veg_points_raw:,} vegetation points)")
+
+            t_extract = time.perf_counter() - t0
+
+            print(f"  [TIME]  Point extract:   {t_extract:.2f}s")
+
+            # ---- Stage 4: Grid Setup ----
+            t0 = time.perf_counter()
+            resolution = 1.0
+            x_min, x_max = x.min(), x.max()
+            y_min, y_max = y.min(), y.max()
+            ncols = int(np.ceil((x_max - x_min) / resolution))
+            nrows = int(np.ceil((y_max - y_min) / resolution))
+            print(f"Grid size: {nrows} rows x {ncols} cols")
+
+            grid_x = np.linspace(x_min, x_max, ncols)
+            grid_y = np.linspace(y_min, y_max, nrows)
+            grid_xx, grid_yy = np.meshgrid(grid_x, grid_y)
+            t_grid = time.perf_counter() - t0
+            print(f"  [TIME]  Grid setup:      {t_grid:.2f}s")
+
+            # ---- Stage 5: DTM Interpolation ----
+            t0 = time.perf_counter()
+            dtm = griddata(
+                points=np.column_stack([x_ground, y_ground]),
+                values=z_ground,
+                xi=(grid_xx, grid_yy),
+                method='linear',
+                fill_value=np.nan
+            )
+            t_dtm = time.perf_counter() - t0
+            print(f"  [TIME]  DTM interpolate: {t_dtm:.2f}s  "
+                  f"(min: {dtm.min():.2f} m, max: {dtm.max():.2f} m)")
+
+            # ---- Stage 6: DSM Rasterization ----
+            t0 = time.perf_counter()
+            dsm = np.full((nrows, ncols), -np.inf)
+            col_idx = ((x_veg - x_min) / resolution).astype(int)
+            row_idx = ((y_max - y_veg) / resolution).astype(int)
+            valid = (col_idx >= 0) & (col_idx < ncols) & (row_idx >= 0) & (row_idx < nrows)
+            col_idx = col_idx[valid]
+            row_idx = row_idx[valid]
+            z_veg_valid = z_veg[valid]
+            np.maximum.at(dsm, (row_idx, col_idx), z_veg_valid)
+            dsm[dsm == -np.inf] = np.nan
+            t_dsm = time.perf_counter() - t0
+            print(f"  [TIME]  DSM rasterize:   {t_dsm:.2f}s")
+
+            # ---- Stage 7: CHM Computation ----
+            t0 = time.perf_counter()
+            chm = dsm - dtm
+            # Remove interpolation artefacts (negative values)
+            chm = np.where(chm < 0, 0, chm)
+
+            # Apply minimum canopy height threshold (removes shrubs and low vegetation)
+            chm = np.where(chm < MIN_CANOPY_HEIGHT_M, 0, chm)   # Set to 0, not NaN — preserves ground
+
+            # Apply maximum height threshold (removes noise above realistic tree height)
+            chm = np.where(chm > 60, np.nan, chm)
+
+            print(f"  CHM cells >= 2 m (tree canopy): {int(np.sum(chm >= MIN_CANOPY_HEIGHT_M)):,}")
+            print(f"  CHM cells < 2 m (non-canopy):   {int(np.sum((chm >= 0) & (chm < MIN_CANOPY_HEIGHT_M))):,}")
+
+            t_chm = time.perf_counter() - t0
+            print(f"  [TIME]  CHM compute:     {t_chm:.2f}s  "
+                  f"(max: {np.nanmax(chm):.1f} m, mean: {np.nanmean(chm):.1f} m)")
+
+            # ---- Stage 8: GeoTIFF Write ----
+            t0 = time.perf_counter()
+            transform = from_origin(x_min, y_max, resolution, resolution)
+            output_path = "../data/outputs/GeoTIFF_files/albemarle_county/" + geotiff_filename
+            with rasterio.open(
+                output_path,
+                mode="w",
+                driver="GTiff",
+                height=nrows,
+                width=ncols,
+                count=1,
+                dtype=chm.dtype,
+                crs="EPSG:32618",
+                transform=transform,
+                nodata=np.nan
+            ) as dst:
+                dst.write(chm, 1)
+            t_write = time.perf_counter() - t0
+            print(f"  [TIME]  GeoTIFF write:   {t_write:.2f}s  → {output_path}")
+
+            # ---- Total Elapsed ----
+            t_total = time.perf_counter() - t_attempt_start
+            print(f"  [TIME]  ── TOTAL ──────  {t_total:.2f}s")
+            print(f"  [TIME]  Breakdown: download={t_download:.1f}s | decompress={t_decompress:.1f}s | "
+                  f"extract={t_extract:.1f}s | grid={t_grid:.1f}s | dtm={t_dtm:.1f}s | "
+                  f"dsm={t_dsm:.1f}s | chm={t_chm:.1f}s | write={t_write:.1f}s")
+
+            return True
+
+        except requests.exceptions.RequestException as e:
+            print(f"  [WARN]  Attempt {attempt}/{retries} failed: {e}")
+            if attempt < retries:
+                time.sleep(5 * attempt)
+
+    print(f"  [FAIL]  Giving up on: {url}")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Batch process LiDAR tiles from CentralVA_LiDAR_SelectedTiles.csv"
+    )
+    parser.add_argument(
+        "--csv",
+        required=True,
+        help="Path to the exported CSV file from ArcGIS Pro"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="lidar_tiles_central_va",
+        help="Root output directory (default: ../data/lidar_tiles_central_va)"
+    )
+    parser.add_argument(
+        "--lpc-only",
+        action="store_true",
+        help="Download LiDAR Point Cloud files only (skip DEM .tif files)"
+    )
+    parser.add_argument(
+        "--dem-only",
+        action="store_true",
+        help="Download DEM files only (skip LPC .laz files)"
+    )
+    parser.add_argument(
+        "--current-only",
+        action="store_true",
+        help="Skip superseded tiles (only download rows where VComment == 'Current')"
+    )
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=None,
+        help="Filter to a specific collection year (e.g. --year 2019)"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print URLs without downloading anything"
+    )
+    args = parser.parse_args()
+
+    # ---- Load CSV ----
+    print(f"\nLoading: {args.csv}")
+    dfSelectedTiles: pd.DataFrame = pd.read_csv(args.csv, encoding="utf-8-sig")
+    print(f"Total rows loaded: {len(dfSelectedTiles):,}")
+
+    # ---- Apply filters ----
+    if args.current_only:
+        before = len(dfSelectedTiles)
+        dfSelectedTiles = dfSelectedTiles[dfSelectedTiles["VComment"].str.strip() == "Current"]
+        print(f"After --current-only filter: {len(dfSelectedTiles):,} rows  (removed {before - len(dfSelectedTiles):,} superceded)")
+
+    if args.year is not None:
+        before = len(dfSelectedTiles)
+        dfSelectedTiles = dfSelectedTiles[dfSelectedTiles["ProjectYea"] == args.year]
+        print(f"After --year {args.year} filter: {len(dfSelectedTiles):,} rows  (removed {before - len(dfSelectedTiles):,})")
+
+    if dfSelectedTiles.empty:
+        print("No rows remain after filtering. Exiting.")
+        sys.exit(0)
+
+    # ---- Organise output directories by project year and host ----
+    output_root = Path(args.output_dir)
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    # ---- Counters ----
+    lpc_ok = lpc_fail = lpc_skip = 0
+    dem_ok = dem_fail = dem_skip = 0
+
+    #print(f"\nStarting process → {output_root.resolve()}\n")
+    print(f"\nStarting process ...\n")
+
+    for idx, row in dfSelectedTiles.iterrows():
+        tile_name = str(row["TileName"]).strip()
+        project_year = str(row["ProjectYea"]).strip()
+        host = str(row["PointCloud"]).strip()
+
+        # Sub-directory: output/<year>/<host>/
+        tile_dir = output_root / project_year / host
+
+        # ---- Process LPC ----
+        if not args.dem_only:
+            lpc_url = extract_url(str(row["PointClo_2"]))
+            if lpc_url:
+                #ext = ".copc.laz" if ".copc.laz" in lpc_url else ".laz"
+                geotiff_filename = "CHM_" + project_year + f"_{host}" + f"{tile_name}.tif"
+                if args.dry_run:
+                    print(f"[DRY-RUN] LPC  {lpc_url}")
+                    lpc_skip += 1
+                else:
+                    success = process_file(lpc_url,geotiff_filename)
+                    if success:
+                        lpc_ok += 1
+                    else:
+                        lpc_fail += 1
+            else:
+                print(f"  [WARN]  No LPC URL for tile: {tile_name}")
+                lpc_skip += 1
+
+        # ---- Process DEM ----
+        if not args.lpc_only:
+            dem_host = str(row["DEMHost"]).strip()
+            if dem_host == "":
+                # No DEM available for this tile (638 rows in dataset)
+                dem_skip += 1
+            else:
+                dem_url = extract_url(str(row["DEMDownloa"]))
+                if dem_url:
+                    dem_filename = tile_dir / "DEM" / Path(dem_url).name
+                    if args.dry_run:
+                        print(f"[DRY-RUN] DEM  {dem_url}")
+                        dem_skip += 1
+                    else:
+                        success = process_file(dem_url,dem_filename)
+                        if success:
+                            dem_ok += 1
+                        else:
+                            dem_fail += 1
+                else:
+                    print(f"  [WARN]  No DEM URL for tile: {tile_name}")
+                    dem_skip += 1
+
+    # ---- Summary ----
+    print("\n============================================")
+    print("Process Summary")
+    print("============================================")
+    if not args.dem_only:
+        print(f"  LPC files:  {lpc_ok} processed, {lpc_fail} failed, {lpc_skip} skipped")
+    if not args.lpc_only:
+        print(f"  DEM files:  {dem_ok} processed, {dem_fail} failed, {dem_skip} skipped/unavailable")
+    #print(f"  Output dir: {output_root.resolve()}")
+    print("============================================\n")
+
+    if lpc_fail > 0 or dem_fail > 0:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
