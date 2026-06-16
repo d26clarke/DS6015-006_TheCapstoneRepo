@@ -175,7 +175,12 @@ jobs:
 ```
 
 ## Part 5: Team Rules of Engagement (GitHub Settings)
-Enable Actions Deployment: Go to Settings > Pages. Under Build and deployment, shift the Source selector dropdown to GitHub Actions. [1]Branch Protection: Go to Settings > Branches and add a protection rule for main.Check Require a pull request before merging (set approvals to at least 1).Check Require status checks to pass before merging and search for your verify job.Lockfile Management: Never delete package-lock.json. If a merge conflict happens on the lockfile, resolve it safely with:
+1 Enable Actions Deployment: Go to Settings > Pages. Under Build and deployment, shift the Source selector dropdown to GitHub Actions. 
+2 Branch Protection: Go to Settings > Branches and add a protection rule for main.
+  - Check Require a pull request before merging (set approvals to at least 1).
+  - Check Require status checks to pass before merging and search for your verify job.
+3 Lockfile Management: Never delete package-lock.json. If a merge conflict happens on the lockfile, resolve it safely with:
+NOTE:  The branch to protect is main
 
 ```bash
 git checkout main -- package-lock.json
