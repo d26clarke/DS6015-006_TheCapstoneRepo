@@ -1,0 +1,127 @@
+# =============================================================================
+# ENVIRONMENT VARIABLES
+# Never commit secrets, API keys, or environment-specific configuration.
+# Only .env.example (containing empty keys) should be tracked.
+# =============================================================================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.staging
+.env.staging.local
+.env.production
+.env.production.local
+
+# Track the template only — empty keys to guide onboarding developers
+!.env.example
+
+# =============================================================================
+# DEPENDENCIES
+# Exclude package manager install directories to avoid massive commit footprints.
+# =============================================================================
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Python virtual environments
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist-info/
+.eggs/
+
+# =============================================================================
+# BUILD OUTPUTS
+# Generated artifacts should be reproducible from source and never committed.
+# =============================================================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.cache/
+.parcel-cache/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# =============================================================================
+# SYSTEM FILES
+# OS-generated metadata files that have no place in version control.
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# =============================================================================
+# EDITOR AND IDE FILES
+# Local editor configuration and workspace files are developer-specific.
+# =============================================================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# =============================================================================
+# LOGS AND RUNTIME FILES
+# =============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.pid
+*.seed
+*.pid.lock
+
+# =============================================================================
+# TESTING AND COVERAGE
+# =============================================================================
+coverage/
+*.lcov
+.nyc_output/
+.pytest_cache/
+htmlcov/
+.tox/
+
+# =============================================================================
+# MISCELLANEOUS
+# =============================================================================
+*.pem
+*.key
+*.cert
+*.p12
+.vercel
+.netlify
