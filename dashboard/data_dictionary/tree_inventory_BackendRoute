@@ -1,0 +1,16 @@
+Part 1: Node.js/TypeScript Express API Route
+This backend route utilizes the official @aws-sdk/client-s3 (v3) to securely stream an uploaded image file directly into AWS S3, constructs the public CloudFront URL, and updates your PostgreSQL database using pg.
+
+npm install express multer @aws-sdk/client-s3 pg
+npm install --save-dev @types/express @types/multer @types/pg
+
+Place file Here ... src/routes/treeUpload.ts
+
+Part 2: React Dashboard Map Integration (Leaflet & Mapbox)
+
+This component merges React-Leaflet for general open-source UI layers with Mapbox Vector Tiles to display background satellite topography seamlessly.The custom marker parses your string-based "Lat, Long" coordinates array on-the-fly and pops open an informative dashboard modal window containing the CloudFront field photo when clicked.
+
+npm install react-leaflet leaflet
+npm install --save-dev @types/leaflet
+
+Place file here ... src/components/TreeDashboardMap.tsx

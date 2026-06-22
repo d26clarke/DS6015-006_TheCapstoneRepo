@@ -325,7 +325,7 @@ and replace the placeholder:
 // src/config.ts
 const DATA_BASE_URL =
   import.meta.env.PROD
-    ? "https://dXXXXXXXXXXXXX.cloudfront.net/data"  // ← your domain
+    ? "https://dqs7zvzytpj1t.cloudfront.net/data"  // ← tree canopy CloudFront domain
     : "/data";
 
 export default DATA_BASE_URL;

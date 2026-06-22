@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org",
+  "title": "TreeInventoryRecord",
+  "type": "object",
+  "properties": {
+    "Tree ID": {
+      "type": "string",
+      "pattern": "^TREE-\\d{5}$",
+      "description": "Unique identifier formatted as TREE-XXXXX"
+    },
+    "Tag Number": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "Scientific Name": {
+      "type": "string",
+      "description": "Latin binomial format"
+    },
+    "Common Name": {
+      "type": "string"
+    },
+    "DBH (inches)": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "Total Height (ft)": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "Canopy Radius (ft)": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "Height to Crown Base (ft)": {
+      "type": "number",
+      "minimum": 0
+    },
+    "Number of Trunks": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
+    },
+    "Condition Class": {
+      "type": "string",
+      "enum": ["Excellent", "Good", "Fair", "Poor", "Dead"]
+    },
+    "Dieback Percentage": {
+      "type": "string",
+      "enum": ["0-10%", "11-25%", "26-50%", "50%+"]
+    },
+    "Pest/Disease Present": {
+      "type": "string",
+      "enum": ["None", "Spotted Lanternfly", "Emerald Ash Borer", "Oak Wilt", "Other"]
+    },
+    "Structural Defects": {
+      "type": ["string", "null"]
+    },
+    "GPS Coordinates": {
+      "type": "string",
+      "description": "Comma-separated Decimal Degrees (Latitude, Longitude)"
+    },
+    "Land Use Type": {
+      "type": "string",
+      "enum": ["Riparian Buffer", "Urban Park", "Street Tree", "Forested Wetland"]
+    },
+    "Soil Moisture Regime": {
+      "type": "string",
+      "enum": ["Poorly Drained (Wet)", "Moderately Drained", "Well Drained (Dry)"]
+    },
+    "Surrounding Surface": {
+      "type": "string",
+      "enum": ["Soil/Mulch", "Turf Grass", "Permeable Pavers", "Concrete/Asphalt"]
+    },
+    "Insert Date": {
+      "type": "string",
+      "format": "date"
+    },
+    "Last Update": {
+      "type": "string",
+      "format": "date"
+    },
+    "Team Members": {
+      "type": "string",
+      "description": "Semicolon-separated names"
+    },
+    "Notes": {
+      "type": ["string", "null"]
+    }
+  },
+  "required": [
+    "Tree ID",
+    "Scientific Name",
+    "Common Name",
+    "DBH (inches)",
+    "GPS Coordinates",
+    "Insert Date",
+    "Last Update",
+    "Team Members"
+  ]
+}
+

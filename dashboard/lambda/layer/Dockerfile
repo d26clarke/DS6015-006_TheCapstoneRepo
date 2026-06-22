@@ -1,0 +1,41 @@
+# Standard Python environments do not include PostgreSQL drivers. You must attach a
+# Lambda layer containing psycopg2 or SQLAlchemy
+
+# Use the official AWS Lambda Python image (Amazon Linux based)
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install necessary build tools and openssl
+RUN yum install -y \
+    python3-devel \
+    gcc \
+    zip \
+    && yum clean all
+
+# Create the python directory structure expected by Lambda Layers
+WORKDIR /opt
+RUN mkdir -p python/lib/python3.11/site-packages
+
+# Install SQLAlchemy and Psycopg
+RUN pip install --upgrade pip \
+    && pip install \
+    SQLAlchemy \
+    psycopg2-binary==2.9.9 \
+    --only-binary=:all: \
+    -t python/lib/python3.11/site-packages
+
+# Create a .zip archive of the layer
+RUN zip -r9 /opt/tree-canopy-api-backend-layer.zip python
+
+# (Optional) Use `docker cp` to extract the .zip to your local machine
+# docker cp <container_id>:/opt/tree-canopy-api-backend-layer.zip .
+
+#OR
+
+# 1. Create a dummy container instance from your layer image
+#docker create --name temp_layer tree-canopy-lambda-layer:latest
+
+# 2. Copy the deployment zip folder directly to your host machine folder
+#docker cp temp_layer:/opt/tree-canopy-api-backend-layer.zip ./tree-canopy-api-backend-layer.zip
+
+# 3. Clean up the temporary container container_id allocation
+#docker rm temp_layer
