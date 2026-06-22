@@ -5,5 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // Sets base path to match the GitHub repository name in production
-  base: process.env.NODE_ENV === 'production' ? '/central-va-tree-canopy-dashboard/' : '/',
+  //base: process.env.NODE_ENV === 'production' ? '/central-va-tree-canopy-dashboard/' : '/',
+  //base: process.env.NODE_ENV === 'production' ? '/' : '/',
+  base: '/',
 })

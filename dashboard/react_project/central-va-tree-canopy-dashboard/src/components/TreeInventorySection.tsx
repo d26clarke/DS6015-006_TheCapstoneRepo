@@ -111,11 +111,11 @@ export default function TreeInventorySection() {
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
+  //const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //  if (e.target.files && e.target.files[0]) {
+  //    setSelectedFile(e.target.files[0]);
+  //  }
+  //};
 
   // 📷 AWS S3 File Multi-part Upload Connector Engine
   const uploadImageToS3 = async (treeId: string): Promise<boolean> => {

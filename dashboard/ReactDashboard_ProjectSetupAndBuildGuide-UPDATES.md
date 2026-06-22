@@ -381,7 +381,25 @@ Or manually sync:
 ```bash
 aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable"
 
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable" --exclude "*.css" --exclude "*.js"
+
 aws s3 cp dist/index.html s3://central-va-tree-canopy-dashboard/index.html --cache-control "no-cache,no-store,must-revalidate" --content-type "text/html"
+
+To correct this issue:
+
+The stylesheet https://dqs7zvzytpj1t.cloudfront.net/central-va-tree-canopy-dashboard/assets/index-DGNrK5qb.css was not loaded because its MIME type, “text/html”, is not “text/css”. data
+Loading module from “https://dqs7zvzytpj1t.cloudfront.net/central-va-tree-canopy-dashboard/assets/index-BsDk-TcY.js” was blocked because of a disallowed MIME type (“text/html”).
+
+# 1. Sync all assets, but temporarily exclude CSS and JS files
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*.css" --exclude "*.js"
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable" --exclude "*.css" --exclude "*.js"
+
+# 2. Sync all CSS files with the correct content-type header override
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*" --include "*.css" --content-type "text/css"
+
+# 3. Sync all JS files with the correct javascript content-type header override
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*" --include "*.js" --content-type "application/javascript"
+
 
 ```
 
