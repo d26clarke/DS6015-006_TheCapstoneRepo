@@ -8,4 +8,7 @@ export default defineConfig({
   //base: process.env.NODE_ENV === 'production' ? '/central-va-tree-canopy-dashboard/' : '/',
   //base: process.env.NODE_ENV === 'production' ? '/' : '/',
   base: '/',
+  optimizeDeps: {
+    include: ['plotly.js'], // Forces Vite to pre-bundle Plotly correctly
+  }
 })

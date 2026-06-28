@@ -3,7 +3,9 @@ import SMAPTimeSeries from "./components/SMAPTimeSeries";
 import CanopyCoverBar from "./components/CanopyCoverBar";
 import SMAPAnnualMeans from "./components/SMAPAnnualMeans";
 import SMAPAnnualMeansAllCounties from "./components/SMAPAnnMeansAllCounty";
-import TreeInventorySecrtion from "./components/TreeInventorySection";
+import TreeInventorySection from "./components/TreeInventorySection";
+import TreeCanopyChart from "./components/TreeCanopyChart";
+import SplitPanelDashboard from "./components/SplitPanelDashboard";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -14,13 +16,17 @@ export default function App() {
       <main style={{ flex: 1, background: "#fff" }}>
         <CanopyCoverBar />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <TreeCanopyChart />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SMAPTimeSeries />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SMAPAnnualMeans />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SMAPAnnualMeansAllCounties />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
-        <TreeInventorySecrtion />
+        <SplitPanelDashboard />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <TreeInventorySection />
       </main>
       <Footer />
     </div>

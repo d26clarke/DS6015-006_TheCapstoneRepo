@@ -45,6 +45,14 @@ npm install --save-dev @types/plotly.js-dist-min
 
 # Install local automation and linting tools
 npm install --save-dev husky lint-staged
+
+# Core map and chart libraries
+npm install leaflet react-leaflet recharts
+
+# TypeScript types
+npm install -D @types/leaflet @types/geojson
+
+
 ```
 
 ## Part 1 — Guardrail Code Quality Locally
