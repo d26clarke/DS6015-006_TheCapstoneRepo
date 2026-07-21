@@ -26,6 +26,15 @@ node_modules/
 .pnp.js
 .yarn/install-state.gz
 
+# Exclude LAZ files
+*.LAZ
+
+# Exclude these files from SageMaker
+.ipynb_checkpoints/
+.Trash-1000/
+.ipynb_checkpoints/
+.virtual_documents/
+
 # Python virtual environments
 venv/
 .venv/
