@@ -1,0 +1,94 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Dockerfile.sagemaker-lidar 
+# Custom SageMaker Processing Image for VGIN LiDAR Pipeline
+#
+# Base: AWS-managed scikit-learn 1.0-1 container (Python 3.8, us-east-1)
+# Adds: laspy + laszip, rasterio, GDAL, scipy, requests, tqdm, pyproj, shapely
+#
+# Build & push:
+#   bash build_and_push_sagemaker.sh
+#
+# Use in launch_sagemaker_job.py:
+#   image_uri = "<account_id>.dkr.ecr.us-east-1.amazonaws.com/lidar-processor:latest"
+# ══════════════════════════════════════════════════════════════════════════════
+
+FROM 683313688378.dkr.ecr.us-east-1.amazonaws.com/sagemaker-scikit-learn:1.0-1-cpu-py3
+
+LABEL maintainer="Central Virginia Tree Canopy Project"
+LABEL description="SageMaker Processing image for VGIN LiDAR LAZ tile processing"
+LABEL version="1.0"
+
+# System dependencies
+# libgdal-dev         : C extensions required by rasterio
+# gdal-bin            : GDAL command-line utilities (gdalinfo, gdal_translate)
+# libspatialindex-dev : spatial indexing library used by rtree
+# laszip              : native LASzip decompression library used by laspy backend
+# build-essential     : gcc/g++ compiler toolchain for any source builds
+# cmake               : required if laszip must be compiled from source
+
+# Remove broken Kitware APT repository
+RUN rm -f /etc/apt/sources.list.d/kitware.list \
+        /etc/apt/sources.list.d/kitware-archive.list \
+        /usr/share/keyrings/kitware-archive-keyring.gpg
+
+# System dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        libgdal-dev \
+        gdal-bin \
+        libspatialindex-dev \
+        liblas-dev \
+        build-essential \
+        cmake \
+        curl \
+        git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+
+# Python dependencies
+# Versions pinned to match the validated local environment exactly.
+# Installed in a single RUN layer to minimise image layer count and size.
+#
+#   laspy[laszip]  : LAZ read/write with LASzip backend (no temp files)
+#   rasterio       : GeoTIFF read/write (requires libgdal-dev above)
+#   scipy          : griddata interpolation for DTM/DSM surface generation
+#   numpy          : array operations (already in base image; pinned for reproducibility)
+#   requests       : HTTP streaming download of LAZ tiles from VGIN servers
+#   tqdm           : progress bars (no-op in SageMaker log streams)
+#   pyproj         : CRS transformations for GeoTIFF georeferencing
+#   shapely        : geometry operations for canopy mask polygon export
+#   boto3          : S3 access (already in base image; ensure minimum version)
+RUN pip install --no-cache-dir \
+    "laspy[laszip]" \
+    "rasterio" \
+    "scipy" \
+    "numpy" \
+    "requests" \
+    "tqdm" \
+    "pyproj" \
+    "shapely" \
+    "boto3>=1.34.0"
+
+# Build-time import verification
+# Fail the Docker build immediately if any required package cannot be imported.
+# This surfaces dependency errors at build time rather than at job runtime.
+RUN python3 -c "\
+import laspy; \
+import rasterio; \
+import scipy; \
+import numpy; \
+import requests; \
+import pyproj; \
+import shapely; \
+print('All required packages imported successfully.'); \
+print(f'  laspy    : {laspy.__version__}'); \
+print(f'  rasterio : {rasterio.__version__}'); \
+print(f'  numpy    : {numpy.__version__}'); \
+print(f'  scipy    : {scipy.__version__}'); \
+"
+
+# SageMaker entrypoint
+# SageMaker Processing Jobs copy the processing script into
+# /opt/ml/processing/input/code/ at runtime via the SDK.
+# The base image entrypoint handles script invocation — no override needed.

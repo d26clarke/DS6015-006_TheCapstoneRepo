@@ -1,0 +1,138 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Dockerfile.sagemaker-gedi
+# Custom SageMaker Processing Image for GEDI L2A/L2B Pipeline
+#
+# Base: python:3.11-slim (plain, multi-arch, current Python)
+# Adds: h5py, geopandas (+ GDAL/GEOS/PROJ), xarray, netCDF4, pyarrow, s3fs
+#
+# NOTE on base image choice: this does NOT use the sagemaker-scikit-learn
+# base image (unlike Dockerfile.sagemaker-lidar), for three reasons found
+# during initial build testing:
+#   1. The GEDI pipeline never actually uses scikit-learn -- that base image
+#      was only reused from the LiDAR Dockerfile for consistency, and turned
+#      out to be the wrong choice here.
+#   2. The pinned boto stack this pipeline requires (botocore==1.43.0,
+#      boto3==1.43.0) needs Python >=3.10. sagemaker-scikit-learn:1.0-1-cpu-py3
+#      is a Python 3.8 image -- pip fails with "No matching distribution
+#      found for botocore==1.43.0" because no such build exists for 3.8.
+#   3. sagemaker-scikit-learn:1.0-1-cpu-py3 is amd64-only. On Apple Silicon
+#      (arm64) builds, Docker has to emulate it, which is a second source of
+#      pain once C-extension packages (h5py, geopandas) enter the picture.
+#      python:3.11-slim is a proper multi-arch image (amd64 + arm64), so
+#      Docker pulls the native architecture with no emulation and no
+#      separate AWS-account ECR login required (unlike the SageMaker-owned
+#      registry, this one's on Docker Hub).
+#
+# SageMaker Processing Jobs support "bring your own container" -- the image
+# does not need to descend from any SageMaker-branded base image. Only
+# requirement: it can run the given command against files mounted at
+# /opt/ml/processing/...
+#
+# Build & push:
+#   bash build_and_push_sagemaker.sh gedi
+#
+# Use in launch_gedi_sagemaker_job.py:
+#   image_uri = "<account_id>.dkr.ecr.us-east-1.amazonaws.com/gedi-processor:latest"
+# ══════════════════════════════════════════════════════════════════════════════
+
+FROM python:3.11-slim
+
+LABEL maintainer="Central Virginia Tree Canopy Project"
+LABEL description="SageMaker Processing image for GEDI L2A/L2B HDF5 pipeline"
+LABEL version="1.1"
+
+# System dependencies
+# libgdal-dev / gdal-bin : required by geopandas' fiona/pyogrio backend for
+#                          reading TIGERweb GeoJSON and performing spatial joins
+# libgeos-dev            : geometry operations backing shapely/geopandas
+# libproj-dev            : CRS transformations backing pyproj/geopandas
+# libhdf5-dev            : native HDF5 library required by h5py
+# libnetcdf-dev          : native NetCDF library required by netCDF4/xarray's .to_netcdf()
+# libspatialindex-dev    : spatial indexing library used by geopandas' sjoin via rtree
+# build-essential/cmake  : compiler toolchain for any source builds
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        libgdal-dev \
+        gdal-bin \
+        libgeos-dev \
+        libproj-dev \
+        libhdf5-dev \
+        libnetcdf-dev \
+        libspatialindex-dev \
+        build-essential \
+        cmake \
+        curl \
+        git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ── Pinned boto stack ─────────────────────────────────────────────────────────
+# This exact combination was discovered necessary in the original notebook
+# (see process_gedi_from_s3.ipynb / process_gedi02_B_from_s3.ipynb Cell 1),
+# where it was installed with --force-reinstall --no-deps. That flag was
+# needed there because the OLD base image (sagemaker-scikit-learn) came with
+# its own pre-installed, conflicting boto3/botocore versions -- without
+# --no-deps, pip's resolver would try to satisfy those already-installed
+# packages rather than upgrade to the versions requested.
+#
+# python:3.11-slim has nothing pre-installed, so that conflict doesn't exist
+# here. --no-deps is intentionally NOT used below: with nothing to fight
+# over, plain pip install lets pip also resolve boto3's genuine required
+# dependencies (s3transfer, jmespath, python-dateutil) correctly. Using
+# --no-deps here was stripping those out entirely, causing:
+#   ModuleNotFoundError: No module named 's3transfer'
+#
+# If you ever need to bump these, re-verify against a real S3 read/list
+# operation before deploying -- don't just bump and assume compatibility.
+RUN pip install --no-cache-dir \
+    "botocore==1.43.0" \
+    "boto3==1.43.0" \
+    "s3fs==2026.6.0"
+
+# ── Remaining Python dependencies ────────────────────────────────────────────
+#   h5py        : GEDI L2A/L2B HDF5 granule reading
+#   geopandas   : spatial join of GEDI shots to jurisdiction boundaries
+#   xarray      : SMAP-grid harmonization, NetCDF export
+#   netCDF4     : NetCDF backend for xarray's .to_netcdf()
+#   pyarrow     : Parquet read/write backend for pandas
+#   numpy       : array operations (not pre-installed in python:3.11-slim,
+#                 unlike the old scikit-learn base image -- installed explicitly here)
+RUN pip install --no-cache-dir \
+    "h5py" \
+    "geopandas" \
+    "xarray" \
+    "netCDF4" \
+    "pyarrow" \
+    "numpy"
+
+# Build-time import verification
+# Fail the Docker build immediately if any required package cannot be
+# imported, or if the pinned boto stack got silently overridden.
+RUN python3 -c "\
+import boto3; \
+import botocore; \
+import s3fs; \
+import h5py; \
+import geopandas; \
+import xarray; \
+import netCDF4; \
+import pyarrow; \
+import numpy; \
+assert boto3.__version__ == '1.43.0', f'boto3 pin violated: {boto3.__version__}'; \
+assert botocore.__version__ == '1.43.0', f'botocore pin violated: {botocore.__version__}'; \
+assert s3fs.__version__ == '2026.6.0', f's3fs pin violated: {s3fs.__version__}'; \
+print('All required packages imported successfully, pinned boto stack intact.'); \
+print(f'  boto3      : {boto3.__version__}'); \
+print(f'  botocore   : {botocore.__version__}'); \
+print(f'  s3fs       : {s3fs.__version__}'); \
+print(f'  h5py       : {h5py.__version__}'); \
+print(f'  geopandas  : {geopandas.__version__}'); \
+print(f'  xarray     : {xarray.__version__}'); \
+print(f'  numpy      : {numpy.__version__}'); \
+"
+
+# SageMaker invocation
+# ScriptProcessor supplies the run command explicitly (command=["python3"]
+# plus the script path/arguments at .run() time) -- this doesn't depend on
+# the base image having any SageMaker-specific entrypoint/toolkit baked in,
+# which is part of why a plain python:3.11-slim image works fine here.

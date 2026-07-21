@@ -52,6 +52,16 @@ npm install leaflet react-leaflet recharts
 # TypeScript types
 npm install -D @types/leaflet @types/geojson
 
+# LiDAR canopy raster + tree centroid visualization
+# (georaster/georaster-layer-for-leaflet render the *_chm.tif and
+#  *_canopy_mask.tif GeoTIFF outputs; proj4 reprojects the pipeline's
+#  meters-based CRS to WGS84 for Leaflet)
+npm install georaster georaster-layer-for-leaflet proj4
+
+# CSV parsing for canopy_cover.csv / centroids.csv
+npm install papaparse
+npm install --save-dev @types/papaparse
+
 
 ```
 

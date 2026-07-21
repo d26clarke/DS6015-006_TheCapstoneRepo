@@ -18,6 +18,14 @@
   {
     "date":"2015-01-01",
     "year":2015,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.2945643,
+    "valid_days":130.7,
+    "n_pixels":20
+  },
+  {
+    "date":"2015-01-01",
+    "year":2015,
     "county":"Charlottesville",
     "sm_mean_m3m3":0.280539,
     "valid_days":129.5,
@@ -51,9 +59,9 @@
     "date":"2015-01-01",
     "year":2015,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3059324091,
-    "valid_days":143.1363636364,
-    "n_pixels":22
+    "sm_mean_m3m3":0.30254115,
+    "valid_days":144.2,
+    "n_pixels":20
   },
   {
     "date":"2015-01-01",
@@ -78,6 +86,14 @@
     "sm_mean_m3m3":0.2315078667,
     "valid_days":191.2666666667,
     "n_pixels":15
+  },
+  {
+    "date":"2016-01-01",
+    "year":2016,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.29913975,
+    "valid_days":177.25,
+    "n_pixels":20
   },
   {
     "date":"2016-01-01",
@@ -115,9 +131,9 @@
     "date":"2016-01-01",
     "year":2016,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3044232273,
-    "valid_days":192.2727272727,
-    "n_pixels":22
+    "sm_mean_m3m3":0.300799,
+    "valid_days":193.75,
+    "n_pixels":20
   },
   {
     "date":"2016-01-01",
@@ -142,6 +158,14 @@
     "sm_mean_m3m3":0.2171989333,
     "valid_days":202.1333333333,
     "n_pixels":15
+  },
+  {
+    "date":"2017-01-01",
+    "year":2017,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.283614,
+    "valid_days":180.25,
+    "n_pixels":20
   },
   {
     "date":"2017-01-01",
@@ -179,9 +203,9 @@
     "date":"2017-01-01",
     "year":2017,
     "county":"Nelson",
-    "sm_mean_m3m3":0.2923452273,
-    "valid_days":200.3181818182,
-    "n_pixels":22
+    "sm_mean_m3m3":0.28893015,
+    "valid_days":202.15,
+    "n_pixels":20
   },
   {
     "date":"2017-01-01",
@@ -206,6 +230,14 @@
     "sm_mean_m3m3":0.2632729333,
     "valid_days":197.8,
     "n_pixels":15
+  },
+  {
+    "date":"2018-01-01",
+    "year":2018,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.3199999,
+    "valid_days":172.95,
+    "n_pixels":20
   },
   {
     "date":"2018-01-01",
@@ -243,9 +275,9 @@
     "date":"2018-01-01",
     "year":2018,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3345071818,
-    "valid_days":194.5909090909,
-    "n_pixels":22
+    "sm_mean_m3m3":0.33132055,
+    "valid_days":196.5,
+    "n_pixels":20
   },
   {
     "date":"2018-01-01",
@@ -270,6 +302,14 @@
     "sm_mean_m3m3":0.3402794,
     "valid_days":10.0,
     "n_pixels":15
+  },
+  {
+    "date":"2019-01-01",
+    "year":2019,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.3756207,
+    "valid_days":14.1,
+    "n_pixels":20
   },
   {
     "date":"2019-01-01",
@@ -307,9 +347,9 @@
     "date":"2019-01-01",
     "year":2019,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3943915455,
-    "valid_days":13.0454545455,
-    "n_pixels":22
+    "sm_mean_m3m3":0.3930121,
+    "valid_days":12.95,
+    "n_pixels":20
   },
   {
     "date":"2019-01-01",
@@ -334,6 +374,14 @@
     "sm_mean_m3m3":0.2497152667,
     "valid_days":207.2,
     "n_pixels":15
+  },
+  {
+    "date":"2020-01-01",
+    "year":2020,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.32240755,
+    "valid_days":185.7,
+    "n_pixels":20
   },
   {
     "date":"2020-01-01",
@@ -371,9 +419,9 @@
     "date":"2020-01-01",
     "year":2020,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3340173182,
-    "valid_days":206.1818181818,
-    "n_pixels":22
+    "sm_mean_m3m3":0.3305437,
+    "valid_days":208.05,
+    "n_pixels":20
   },
   {
     "date":"2020-01-01",
@@ -398,6 +446,14 @@
     "sm_mean_m3m3":0.2308721333,
     "valid_days":212.3333333333,
     "n_pixels":15
+  },
+  {
+    "date":"2021-01-01",
+    "year":2021,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.29910365,
+    "valid_days":183.75,
+    "n_pixels":20
   },
   {
     "date":"2021-01-01",
@@ -435,9 +491,9 @@
     "date":"2021-01-01",
     "year":2021,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3106388182,
-    "valid_days":208.6818181818,
-    "n_pixels":22
+    "sm_mean_m3m3":0.30748835,
+    "valid_days":210.95,
+    "n_pixels":20
   },
   {
     "date":"2021-01-01",
@@ -462,6 +518,14 @@
     "sm_mean_m3m3":0.2355553333,
     "valid_days":168.4,
     "n_pixels":15
+  },
+  {
+    "date":"2022-01-01",
+    "year":2022,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.2988564,
+    "valid_days":148.35,
+    "n_pixels":20
   },
   {
     "date":"2022-01-01",
@@ -499,9 +563,9 @@
     "date":"2022-01-01",
     "year":2022,
     "county":"Nelson",
-    "sm_mean_m3m3":0.3131892727,
-    "valid_days":165.9545454545,
-    "n_pixels":22
+    "sm_mean_m3m3":0.3099455,
+    "valid_days":167.55,
+    "n_pixels":20
   },
   {
     "date":"2022-01-01",
@@ -526,6 +590,14 @@
     "sm_mean_m3m3":0.2134710667,
     "valid_days":215.1333333333,
     "n_pixels":15
+  },
+  {
+    "date":"2023-01-01",
+    "year":2023,
+    "county":"Buckingham",
+    "sm_mean_m3m3":0.29593865,
+    "valid_days":184.35,
+    "n_pixels":20
   },
   {
     "date":"2023-01-01",
@@ -563,9 +635,9 @@
     "date":"2023-01-01",
     "year":2023,
     "county":"Nelson",
-    "sm_mean_m3m3":0.2963218636,
-    "valid_days":208.0909090909,
-    "n_pixels":22
+    "sm_mean_m3m3":0.29240515,
+    "valid_days":210.35,
+    "n_pixels":20
   },
   {
     "date":"2023-01-01",

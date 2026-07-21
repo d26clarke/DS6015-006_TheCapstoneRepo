@@ -1,0 +1,4 @@
+tile_id,project_year,canopy_cover_firstreturn,canopy_cover_raster,n_trees,veg_source
+S13_4889_10,2016,0.5571,0.7438,150,derived_hag
+S13_4889_20,2016,0.407,0.4638,150,derived_hag
+S13_4879_30,2016,0.3014,0.3379,150,derived_hag

@@ -1,0 +1,267 @@
+School Year,Division Number,Division Name,Subject,Pass Rate
+2018-2019,2,Albemarle County ,English:Reading,    78.47
+2018-2019,2,Albemarle County ,English:Writing,    79.44
+2018-2019,2,Albemarle County ,History and Social Science,    78.88
+2018-2019,2,Albemarle County ,Mathematics,    81.37
+2018-2019,2,Albemarle County ,Science,    79.20
+2018-2019,8,Augusta County ,English:Reading,    77.22
+2018-2019,8,Augusta County ,English:Writing,    78.19
+2018-2019,8,Augusta County ,History and Social Science,    84.74
+2018-2019,8,Augusta County ,Mathematics,    83.80
+2018-2019,8,Augusta County ,Science,    83.43
+2018-2019,15,Buckingham County ,English:Reading,    60.85
+2018-2019,15,Buckingham County ,English:Writing,    60.93
+2018-2019,15,Buckingham County ,History and Social Science,    65.50
+2018-2019,15,Buckingham County ,Mathematics,    72.49
+2018-2019,15,Buckingham County ,Science,    64.43
+2018-2019,104,Charlottesville City ,English:Reading,    69.52
+2018-2019,104,Charlottesville City ,English:Writing,    74.30
+2018-2019,104,Charlottesville City ,History and Social Science,    72.46
+2018-2019,104,Charlottesville City ,Mathematics,    71.60
+2018-2019,104,Charlottesville City ,Science,    67.29
+2018-2019,32,Fluvanna County ,English:Reading,    75.04
+2018-2019,32,Fluvanna County ,English:Writing,    74.95
+2018-2019,32,Fluvanna County ,History and Social Science,    81.31
+2018-2019,32,Fluvanna County ,Mathematics,    83.82
+2018-2019,32,Fluvanna County ,Science,    84.80
+2018-2019,39,Greene County ,English:Reading,    70.35
+2018-2019,39,Greene County ,English:Writing,    75.50
+2018-2019,39,Greene County ,History and Social Science,    69.05
+2018-2019,39,Greene County ,Mathematics,    76.74
+2018-2019,39,Greene County ,Science,    75.68
+2018-2019,54,Louisa County ,English:Reading,    76.93
+2018-2019,54,Louisa County ,English:Writing,    77.45
+2018-2019,54,Louisa County ,History and Social Science,    86.44
+2018-2019,54,Louisa County ,Mathematics,    84.13
+2018-2019,54,Louisa County ,Science,    85.28
+2018-2019,62,Nelson County ,English:Reading,    75.44
+2018-2019,62,Nelson County ,English:Writing,    70.57
+2018-2019,62,Nelson County ,History and Social Science,    84.07
+2018-2019,62,Nelson County ,Mathematics,    86.09
+2018-2019,62,Nelson County ,Science,    82.97
+2018-2019,82,Rockingham County ,English:Reading,    75.79
+2018-2019,82,Rockingham County ,English:Writing,    63.04
+2018-2019,82,Rockingham County ,History and Social Science,    80.83
+2018-2019,82,Rockingham County ,Mathematics,    82.73
+2018-2019,82,Rockingham County ,Science,    82.25
+2020-2021,2,Albemarle County ,English:Reading,    76.59
+2020-2021,2,Albemarle County ,English:Writing,    80.25
+2020-2021,2,Albemarle County ,History and Social Science,    67.48
+2020-2021,2,Albemarle County ,Mathematics,    65.34
+2020-2021,2,Albemarle County ,Science,    64.89
+2020-2021,8,Augusta County ,English:Reading,    68.88
+2020-2021,8,Augusta County ,English:Writing,    74.50
+2020-2021,8,Augusta County ,History and Social Science,    47.30
+2020-2021,8,Augusta County ,Mathematics,    54.84
+2020-2021,8,Augusta County ,Science,    64.14
+2020-2021,15,Buckingham County ,English:Reading,    48.77
+2020-2021,15,Buckingham County ,English:Writing,    50.68
+2020-2021,15,Buckingham County ,History and Social Science,    34.20
+2020-2021,15,Buckingham County ,Mathematics,    36.00
+2020-2021,15,Buckingham County ,Science,    39.72
+2020-2021,104,Charlottesville City ,English:Reading,    60.13
+2020-2021,104,Charlottesville City ,English:Writing,    58.08
+2020-2021,104,Charlottesville City ,History and Social Science,    51.52
+2020-2021,104,Charlottesville City ,Mathematics,    41.67
+2020-2021,104,Charlottesville City ,Science,    47.29
+2020-2021,32,Fluvanna County ,English:Reading,    70.42
+2020-2021,32,Fluvanna County ,English:Writing,    66.74
+2020-2021,32,Fluvanna County ,History and Social Science,    59.71
+2020-2021,32,Fluvanna County ,Mathematics,    60.84
+2020-2021,32,Fluvanna County ,Science,    59.50
+2020-2021,39,Greene County ,English:Reading,    63.66
+2020-2021,39,Greene County ,English:Writing,>50
+2020-2021,39,Greene County ,History and Social Science,>50
+2020-2021,39,Greene County ,Mathematics,    40.37
+2020-2021,39,Greene County ,Science,    56.41
+2020-2021,54,Louisa County ,English:Reading,    76.58
+2020-2021,54,Louisa County ,English:Writing,    83.85
+2020-2021,54,Louisa County ,History and Social Science,<50
+2020-2021,54,Louisa County ,Mathematics,    63.33
+2020-2021,54,Louisa County ,Science,    66.23
+2020-2021,62,Nelson County ,English:Reading,    61.26
+2020-2021,62,Nelson County ,English:Writing,    50.35
+2020-2021,62,Nelson County ,History and Social Science,    50.41
+2020-2021,62,Nelson County ,Mathematics,    41.34
+2020-2021,62,Nelson County ,Science,    46.89
+2020-2021,82,Rockingham County ,English:Reading,    63.52
+2020-2021,82,Rockingham County ,English:Writing,<50
+2020-2021,82,Rockingham County ,History and Social Science,    54.26
+2020-2021,82,Rockingham County ,Mathematics,    47.11
+2020-2021,82,Rockingham County ,Science,    56.74
+2021-2022,2,Albemarle County ,English:Reading,    75.12
+2021-2022,2,Albemarle County ,English:Writing,    66.76
+2021-2022,2,Albemarle County ,History and Social Science,    66.56
+2021-2022,2,Albemarle County ,Mathematics,    66.37
+2021-2022,2,Albemarle County ,Science,    62.19
+2021-2022,8,Augusta County ,English:Reading,    72.72
+2021-2022,8,Augusta County ,English:Writing,    70.09
+2021-2022,8,Augusta County ,History and Social Science,    76.02
+2021-2022,8,Augusta County ,Mathematics,    68.87
+2021-2022,8,Augusta County ,Science,    70.10
+2021-2022,15,Buckingham County ,English:Reading,    60.00
+2021-2022,15,Buckingham County ,English:Writing,    52.04
+2021-2022,15,Buckingham County ,History and Social Science,    43.15
+2021-2022,15,Buckingham County ,Mathematics,    57.40
+2021-2022,15,Buckingham County ,Science,    53.66
+2021-2022,104,Charlottesville City ,English:Reading,    63.15
+2021-2022,104,Charlottesville City ,English:Writing,    43.90
+2021-2022,104,Charlottesville City ,History and Social Science,    54.70
+2021-2022,104,Charlottesville City ,Mathematics,    55.00
+2021-2022,104,Charlottesville City ,Science,    52.74
+2021-2022,32,Fluvanna County ,English:Reading,    70.03
+2021-2022,32,Fluvanna County ,English:Writing,    68.59
+2021-2022,32,Fluvanna County ,History and Social Science,    69.03
+2021-2022,32,Fluvanna County ,Mathematics,    64.12
+2021-2022,32,Fluvanna County ,Science,    64.22
+2021-2022,39,Greene County ,English:Reading,    62.18
+2021-2022,39,Greene County ,English:Writing,    38.77
+2021-2022,39,Greene County ,History and Social Science,    57.26
+2021-2022,39,Greene County ,Mathematics,    55.60
+2021-2022,39,Greene County ,Science,    56.50
+2021-2022,54,Louisa County ,English:Reading,    75.11
+2021-2022,54,Louisa County ,English:Writing,    56.90
+2021-2022,54,Louisa County ,History and Social Science,    72.22
+2021-2022,54,Louisa County ,Mathematics,    75.05
+2021-2022,54,Louisa County ,Science,    77.26
+2021-2022,62,Nelson County ,English:Reading,    67.75
+2021-2022,62,Nelson County ,English:Writing,    61.11
+2021-2022,62,Nelson County ,History and Social Science,    65.91
+2021-2022,62,Nelson County ,Mathematics,    70.33
+2021-2022,62,Nelson County ,Science,    67.59
+2021-2022,82,Rockingham County ,English:Reading,    66.86
+2021-2022,82,Rockingham County ,English:Writing,    44.11
+2021-2022,82,Rockingham County ,History and Social Science,    68.45
+2021-2022,82,Rockingham County ,Mathematics,    61.35
+2021-2022,82,Rockingham County ,Science,    60.53
+2022-2023,2,Albemarle County ,English:Reading,    74.27
+2022-2023,2,Albemarle County ,English:Writing,    72.68
+2022-2023,2,Albemarle County ,History and Social Science,    72.77
+2022-2023,2,Albemarle County ,Mathematics,    69.27
+2022-2023,2,Albemarle County ,Science,    66.79
+2022-2023,8,Augusta County ,English:Reading,    69.96
+2022-2023,8,Augusta County ,English:Writing,    52.33
+2022-2023,8,Augusta County ,History and Social Science,    71.52
+2022-2023,8,Augusta County ,Mathematics,    69.58
+2022-2023,8,Augusta County ,Science,    69.54
+2022-2023,15,Buckingham County ,English:Reading,    57.76
+2022-2023,15,Buckingham County ,English:Writing,    47.24
+2022-2023,15,Buckingham County ,History and Social Science,    47.76
+2022-2023,15,Buckingham County ,Mathematics,    55.36
+2022-2023,15,Buckingham County ,Science,    55.67
+2022-2023,104,Charlottesville City ,English:Reading,    64.94
+2022-2023,104,Charlottesville City ,English:Writing,    41.94
+2022-2023,104,Charlottesville City ,History and Social Science,    51.50
+2022-2023,104,Charlottesville City ,Mathematics,    60.42
+2022-2023,104,Charlottesville City ,Science,    55.84
+2022-2023,32,Fluvanna County ,English:Reading,    67.78
+2022-2023,32,Fluvanna County ,English:Writing,    61.54
+2022-2023,32,Fluvanna County ,History and Social Science,    64.19
+2022-2023,32,Fluvanna County ,Mathematics,    68.54
+2022-2023,32,Fluvanna County ,Science,    64.15
+2022-2023,39,Greene County ,English:Reading,    64.59
+2022-2023,39,Greene County ,English:Writing,    49.80
+2022-2023,39,Greene County ,History and Social Science,    56.14
+2022-2023,39,Greene County ,Mathematics,    63.91
+2022-2023,39,Greene County ,Science,    62.30
+2022-2023,54,Louisa County ,English:Reading,    76.31
+2022-2023,54,Louisa County ,English:Writing,    68.69
+2022-2023,54,Louisa County ,History and Social Science,    75.27
+2022-2023,54,Louisa County ,Mathematics,    78.53
+2022-2023,54,Louisa County ,Science,    77.76
+2022-2023,62,Nelson County ,English:Reading,    70.88
+2022-2023,62,Nelson County ,English:Writing,    59.41
+2022-2023,62,Nelson County ,History and Social Science,    74.35
+2022-2023,62,Nelson County ,Mathematics,    73.34
+2022-2023,62,Nelson County ,Science,    74.17
+2022-2023,82,Rockingham County ,English:Reading,    63.67
+2022-2023,82,Rockingham County ,English:Writing,    43.71
+2022-2023,82,Rockingham County ,History and Social Science,    67.56
+2022-2023,82,Rockingham County ,Mathematics,    62.27
+2022-2023,82,Rockingham County ,Science,    65.59
+2023-2024,2,Albemarle County ,English:Reading,    74.97
+2023-2024,2,Albemarle County ,English:Writing,    77.77
+2023-2024,2,Albemarle County ,History and Social Science,    73.11
+2023-2024,2,Albemarle County ,Mathematics,    71.85
+2023-2024,2,Albemarle County ,Science,    67.59
+2023-2024,8,Augusta County ,English:Reading,    70.07
+2023-2024,8,Augusta County ,English:Writing,    36.84
+2023-2024,8,Augusta County ,History and Social Science,    69.23
+2023-2024,8,Augusta County ,Mathematics,    68.58
+2023-2024,8,Augusta County ,Science,    69.82
+2023-2024,15,Buckingham County ,English:Reading,    61.85
+2023-2024,15,Buckingham County ,English:Writing,    65.71
+2023-2024,15,Buckingham County ,History and Social Science,    52.15
+2023-2024,15,Buckingham County ,Mathematics,    62.90
+2023-2024,15,Buckingham County ,Science,    62.79
+2023-2024,104,Charlottesville City ,English:Reading,    64.68
+2023-2024,104,Charlottesville City ,History and Social Science,    61.26
+2023-2024,104,Charlottesville City ,Mathematics,    62.84
+2023-2024,104,Charlottesville City ,Science,    62.21
+2023-2024,32,Fluvanna County ,English:Reading,    70.85
+2023-2024,32,Fluvanna County ,English:Writing,    83.95
+2023-2024,32,Fluvanna County ,History and Social Science,    65.24
+2023-2024,32,Fluvanna County ,Mathematics,    73.61
+2023-2024,32,Fluvanna County ,Science,    63.75
+2023-2024,39,Greene County ,English:Reading,    62.94
+2023-2024,39,Greene County ,History and Social Science,    58.60
+2023-2024,39,Greene County ,Mathematics,    66.64
+2023-2024,39,Greene County ,Science,    64.01
+2023-2024,54,Louisa County ,English:Reading,    78.56
+2023-2024,54,Louisa County ,English:Writing,    97.33
+2023-2024,54,Louisa County ,History and Social Science,    78.63
+2023-2024,54,Louisa County ,Mathematics,    80.49
+2023-2024,54,Louisa County ,Science,    78.05
+2023-2024,62,Nelson County ,English:Reading,    71.75
+2023-2024,62,Nelson County ,English:Writing,<50
+2023-2024,62,Nelson County ,History and Social Science,    69.68
+2023-2024,62,Nelson County ,Mathematics,    75.56
+2023-2024,62,Nelson County ,Science,    69.38
+2023-2024,82,Rockingham County ,English:Reading,    64.68
+2023-2024,82,Rockingham County ,English:Writing,<50
+2023-2024,82,Rockingham County ,History and Social Science,    63.16
+2023-2024,82,Rockingham County ,Mathematics,    66.51
+2023-2024,82,Rockingham County ,Science,    65.71
+2024-2025,2,Albemarle County ,English:Reading,    75.32
+2024-2025,2,Albemarle County ,English:Writing,    75.19
+2024-2025,2,Albemarle County ,History and Social Science,    72.15
+2024-2025,2,Albemarle County ,Mathematics,    73.97
+2024-2025,2,Albemarle County ,Science,    70.06
+2024-2025,8,Augusta County ,English:Reading,    70.34
+2024-2025,8,Augusta County ,English:Writing,    46.51
+2024-2025,8,Augusta County ,History and Social Science,    69.37
+2024-2025,8,Augusta County ,Mathematics,    69.79
+2024-2025,8,Augusta County ,Science,    71.57
+2024-2025,15,Buckingham County ,English:Reading,    64.71
+2024-2025,15,Buckingham County ,History and Social Science,    55.60
+2024-2025,15,Buckingham County ,Mathematics,    62.69
+2024-2025,15,Buckingham County ,Science,    61.38
+2024-2025,104,Charlottesville City ,English:Reading,    66.92
+2024-2025,104,Charlottesville City ,English:Writing,<50
+2024-2025,104,Charlottesville City ,History and Social Science,    58.76
+2024-2025,104,Charlottesville City ,Mathematics,    66.76
+2024-2025,104,Charlottesville City ,Science,    57.60
+2024-2025,32,Fluvanna County ,English:Reading,    71.01
+2024-2025,32,Fluvanna County ,English:Writing,    80.31
+2024-2025,32,Fluvanna County ,History and Social Science,    57.71
+2024-2025,32,Fluvanna County ,Mathematics,    75.10
+2024-2025,32,Fluvanna County ,Science,    63.74
+2024-2025,39,Greene County ,English:Reading,    67.38
+2024-2025,39,Greene County ,History and Social Science,    58.17
+2024-2025,39,Greene County ,Mathematics,    70.48
+2024-2025,39,Greene County ,Science,    71.80
+2024-2025,54,Louisa County ,English:Reading,    81.92
+2024-2025,54,Louisa County ,English:Writing,    99.30
+2024-2025,54,Louisa County ,History and Social Science,    78.11
+2024-2025,54,Louisa County ,Mathematics,    84.38
+2024-2025,54,Louisa County ,Science,    81.76
+2024-2025,62,Nelson County ,English:Reading,    75.24
+2024-2025,62,Nelson County ,English:Writing,>50
+2024-2025,62,Nelson County ,History and Social Science,    71.61
+2024-2025,62,Nelson County ,Mathematics,    79.42
+2024-2025,62,Nelson County ,Science,    72.48
+2024-2025,82,Rockingham County ,English:Reading,    65.90
+2024-2025,82,Rockingham County ,English:Writing,<50
+2024-2025,82,Rockingham County ,History and Social Science,    66.47
+2024-2025,82,Rockingham County ,Mathematics,    68.34
+2024-2025,82,Rockingham County ,Science,    70.19

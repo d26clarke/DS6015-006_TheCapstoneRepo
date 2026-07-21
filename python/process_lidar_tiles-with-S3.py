@@ -1,7 +1,7 @@
 """
 process_lidar_tiles.py — Parallel VGIN LiDAR LAZ Processing Pipeline
 ======================================================================
-Incorporates:
+Incorporates: 
   - concurrent.futures.ProcessPoolExecutor for tile-level parallelism
   - Thread-safe / process-safe skip logging via a multiprocessing Lock
   - Per-stage timing with time.perf_counter()

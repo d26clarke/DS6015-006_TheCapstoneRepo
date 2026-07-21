@@ -1,0 +1,4 @@
+tile_id,project_year,canopy_cover_firstreturn,canopy_cover_raster,n_trees,veg_source
+17SQC3129,2014,0.7187,0.8853,150,classified
+17SQC3130,2014,0.4698,0.5214,150,classified
+17SOC885120,2020,0.6664,0.828,150,derived_hag

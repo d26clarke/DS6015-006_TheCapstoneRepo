@@ -45,7 +45,7 @@ for scen_name, vectors in scenarios.items():
     
     # Store matrix arrays for each jurisdiction
     # Shape: (Years, Posterior Samples) -> tracks entire distribution shapes over time
-    juris_forecasts = {}
+    jurisdiction_forecasts = {}
     
     for j_idx, j_name in enumerate(jurisdictions):
         # Initialize an empty array for years 2024-2028
@@ -58,7 +58,7 @@ for scen_name, vectors in scenarios.items():
         for t_idx, year in enumerate(future_years):
             # Pull scenario metrics for the given year
             curr_sm_mean = vectors["sm_mean"][t_idx]
-            curr_sm_std = vectors["sm_std"][t_idx]
+            curr_sm_std = vectors["sm_std"][t_idx] 
             
             # Vectorized Bayesian Calculation across all posterior MCMC draws
             # This applies the exact regression equation defined in the likelihood function
@@ -76,9 +76,9 @@ for scen_name, vectors in scenarios.items():
             canopy_sim[t_idx, :] = simulated_heights
             last_canopy_height = simulated_heights
             
-        juris_forecasts[j_name] = canopy_sim
+        jurisdiction_forecasts[j_name] = canopy_sim
         
-    simulation_results[scen_name] = j_forecasts
+    simulation_results[scen_name] = jurisdiction_forecasts
 
 # 4. Extract and analyze 2027 and 2028 credible distributions
 for scen_name, juris_data in simulation_results.items():
