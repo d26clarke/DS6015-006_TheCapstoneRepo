@@ -4,19 +4,19 @@ launch_sagemaker_job.py
 Launcher script to submit LiDAR processing jobs to AWS SageMaker.
 
 County and year are derived automatically from the S3 input path:
-  s3://central-virginia-tree-canopy-project/data/inputs/<County>/CentralVA_LiDAR_<County>.csv
+  s3://central-virginia-tree-canopy-project/data/outputs/<County>/CentralVA_LiDAR_<County>.csv
 
 The processing script receives the full S3 input path as an environment
 variable (SM_INPUT_CSV_S3) and parses county and year from it at runtime.
 
 Usage — single county:
-  python launch_sagemaker_job.py --county Albemarle
+  python launch_sagemaker_job.py --county Albemarle --csv-file CentralVA_LiDAR_Albemarle.csv
 
 Usage — all nine counties in parallel:
   python launch_sagemaker_job.py --all
 
 Usage — override instance type:
-  python launch_sagemaker_job.py --county Nelson --instance-type ml.c5.2xlarge
+  python launch_sagemaker_job.py --county Nelson --csv-file CentralVA_LiDAR_Albemarle.csv --instance-type ml.c5.2xlarge
 """
 
 import argparse
@@ -40,6 +40,7 @@ COUNTY_CSV_MAP = {
     "Greene":          "CentralVA_LiDAR_Greene.csv",
     "Louisa":          "CentralVA_LiDAR_Louisa.csv",
     "Nelson":          "CentralVA_LiDAR_Nelson.csv",
+    "Orange":          "CentralVA_LiDAR_Orange.csv",
     "Rockingham":      "CentralVA_LiDAR_Rockingham.csv",
 }
 
@@ -47,12 +48,13 @@ COUNTY_CSV_MAP = {
 COUNTY_INSTANCE_MAP = {
     "Albemarle":       "ml.c5.4xlarge",
     "Augusta":         "ml.c5.4xlarge",
-    "Buckingham":      "ml.c5.2xlarge",
-    "Charlottesville": "ml.c5.2xlarge",
-    "Fluvanna":        "ml.c5.2xlarge",
-    "Greene":          "ml.c5.2xlarge",
+    "Buckingham":      "ml.c5.4xlarge",
+    "Charlottesville": "ml.c5.4xlarge",
+    "Fluvanna":        "ml.c5.4xlarge",
+    "Greene":          "ml.c5.4xlarge",
     "Louisa":          "ml.c5.4xlarge",
-    "Nelson":          "ml.c5.2xlarge",
+    "Nelson":          "ml.c5.4xlarge",
+    "Orange":          "ml.c5.4xlarge",
     "Rockingham":      "ml.c5.4xlarge",
 }
 
@@ -60,22 +62,24 @@ COUNTY_INSTANCE_MAP = {
 INSTANCE_WORKERS = {
     "ml.c5.large":    2,
     "ml.c5.xlarge":   2,
-    "ml.c5.2xlarge":  6,
-    "ml.c5.4xlarge":  14,
+    "ml.c5.2xlarge":  3,
+    "ml.c5.4xlarge":  7,
     "ml.c5.9xlarge":  34,
     "ml.c5.18xlarge": 70,
 }
 
 
-def submit_job(county: str, instance_type: str, role: str, session: sagemaker.Session) -> str:
+def submit_job(county: str, csv_file: str, instance_type: str, role: str, session: sagemaker.Session) -> str:
     """
     Submit a SageMaker Processing Job for a single county.
     County and year are derived inside the processing script from the input path.
     Returns the SageMaker job name.
     """
-    csv_filename = COUNTY_CSV_MAP[county]
+    #csv_filename = COUNTY_CSV_MAP[county]
+    csv_filename = csv_file
     s3_input_csv = f"{S3_INPUT_BASE}/{county}/{csv_filename}"
-    s3_output    = f"{S3_OUTPUT_BASE}/{county}/"
+    #s3_output    = f"{S3_OUTPUT_BASE}/{county}/"
+    s3_output    = f"{S3_OUTPUT_BASE}/"
     workers      = INSTANCE_WORKERS.get(instance_type, 6)
 
     print(f"\n[{county}] Submitting job")
@@ -84,9 +88,7 @@ def submit_job(county: str, instance_type: str, role: str, session: sagemaker.Se
     print(f"  Instance    : {instance_type}  ({workers} workers)")
 
     processor = ScriptProcessor(
-        image_uri=sagemaker.image_uris.retrieve(
-            "sklearn", session.boto_region_name, version="1.0-1"
-        ),
+        image_uri = "389548781850.dkr.ecr.us-east-1.amazonaws.com/lidar-processor:latest",
         command=["python3"],
         role=role,
         instance_count=1,
@@ -104,7 +106,7 @@ def submit_job(county: str, instance_type: str, role: str, session: sagemaker.Se
             source=s3_input_csv,
             destination="/opt/ml/processing/input",
             input_name="tile_list",
-        )
+        ),
     ]
 
     outputs = [
@@ -123,6 +125,7 @@ def submit_job(county: str, instance_type: str, role: str, session: sagemaker.Se
         outputs=outputs,
         arguments=[
             "--csv",     f"/opt/ml/processing/input/{csv_filename}",
+            "--county", str(county),
             "--workers", str(workers),
         ],
         wait=False,
@@ -143,6 +146,10 @@ def main():
         choices=list(COUNTY_CSV_MAP.keys()),
         help="Process a single county",
     )
+    parser.add_argument(
+        "--csv-file", default=None,
+        help="CSV file with VGIN URLs",
+    )
     group.add_argument(
         "--all",
         action="store_true",
@@ -161,13 +168,15 @@ def main():
     session = sagemaker.Session()
     role    = args.role if args.role else get_execution_role()
 
+    csv_file = args.csv_file
+
     counties = list(COUNTY_CSV_MAP.keys()) if args.all else [args.county]
     submitted_jobs = {}
 
     for county in counties:
         instance_type = args.instance_type or COUNTY_INSTANCE_MAP[county]
         try:
-            job_name = submit_job(county, instance_type, role, session)
+            job_name = submit_job(county, csv_file, instance_type, role, session)
             submitted_jobs[county] = job_name
             if args.all:
                 time.sleep(2)   # Brief pause to avoid API throttling

@@ -1,11 +1,11 @@
 """
 sagemaker_process_lidar.py — SageMaker VGIN LiDAR LAZ Processing Pipeline
 ======================================================================
-Adapted for AWS SageMaker Processing Jobs. 
+Adapted for AWS SageMaker Processing Jobs.
 
 County and year are derived automatically from the SM_INPUT_CSV_S3 environment
 variable injected by the launcher (e.g.
-  s3://central-virginia-tree-canopy-project/data/outputs/Albemarle/CentralVA_LiDAR_Albemarle.csv
+  s3://central-virginia-tree-canopy-project/data/inputs/Albemarle/CentralVA_LiDAR_Albemarle.csv
   → county = "Albemarle"
   → year   = parsed from the CSV "Year" column, or "unknown" if absent)
 
@@ -22,6 +22,25 @@ Canopy cover is computed using two complementary methods per tile:
                            Standard method; directly comparable to GEDI cover fraction.
   2. CHM cell fraction   — (CHM cells ≥ 2 m) / (total raster cells)
                            Spatial method; suitable for dashboard raster layers.
+
+Unit handling:
+  Each tile's native X/Y/Z linear unit (e.g. US Survey Feet for Virginia
+  State Plane South, EPSG:6595) is detected directly from the LAZ file's
+  embedded CRS via get_horizontal_unit_to_meters(). All grid math, height
+  thresholds, and GeoTIFF output are then performed in true meters so they
+  align correctly with OUTPUT_CRS (a meters-based CRS) regardless of the
+  source tile's native unit.
+
+Vegetation fallback:
+  Some VGIN/USGS 3DEP deliveries (commonly 2015-vintage LPC projects) were
+  produced under an earlier Lidar Base Specification whose minimum required
+  classification scheme only mandated Ground (2); vegetation classes
+  (3/4/5) were an optional add-on some projects never populated, leaving
+  all canopy points as Unclassified (1). For such tiles, classification-based
+  vegetation detection returns zero points even though vegetation is present.
+  compute_vegetation_from_hag() derives a vegetation mask directly from
+  height-above-ground for these tiles, so they're processed instead of
+  being skipped as "no_vegetation".
 
 Usage inside SageMaker (no --county or --year needed):
   python sagemaker_process_lidar.py \
@@ -77,6 +96,209 @@ logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SECTION 0A — Unit Detection & HAG-Derived Vegetation Fallback
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_horizontal_unit_to_meters(las) -> float:
+    """
+    Read the tile's actual horizontal (X/Y) unit conversion factor
+    (native unit -> meters) directly from its embedded CRS, rather than
+    assuming meters or hardcoding feet.
+
+    For VGIN/USGS tiles in Virginia State Plane South (ftUS), e.g.
+    EPSG:6595, this returns 0.30480060960121924 (1 US survey foot in meters).
+    Z is assumed to share the same native unit as X/Y, which holds for all
+    VGIN Virginia State Plane (ftUS) deliveries observed so far.
+
+    Falls back to the module-level FT_TO_M constant (the VGIN historical
+    default) with a warning if no CRS is embedded in the file, since an
+    unlabeled tile from this program is far more likely to be in US Survey
+    Feet than in meters.
+    """
+    try:
+        crs = las.header.parse_crs()
+    except Exception as e:
+        logger.warning(f"Could not parse CRS ({e}); assuming native unit is "
+                        f"US Survey Feet (FT_TO_M={FT_TO_M})")
+        return FT_TO_M
+
+    if crs is None:
+        logger.warning("No CRS embedded in file; assuming native unit is "
+                        f"US Survey Feet (FT_TO_M={FT_TO_M})")
+        return FT_TO_M
+
+    to_meters = crs.axis_info[0].unit_conversion_factor
+    unit_name = crs.axis_info[0].unit_name
+    logger.info(f"Detected horizontal unit: {unit_name} (1 unit = {to_meters:.10f} m)")
+    return to_meters
+
+
+def build_ground_grid(gx: np.ndarray, gy: np.ndarray, gz: np.ndarray,
+                       x_min: float, y_min: float, x_max: float, y_max: float,
+                       resolution_m: float) -> dict:
+    """
+    Build a single gridded ground surface (DTM) from Class 2 (Ground) points,
+    via cell-binning + nearest-neighbor gap fill.
+
+    This replaces two things that were previously built independently for
+    the same underlying ground points:
+      1. The HAG fallback's own binned ground grid.
+      2. The main pipeline's DTM, previously built via
+         scipy.interpolate.griddata(..., method="linear"), which requires a
+         full Delaunay triangulation over all ground points -- expensive in
+         both memory and time for multi-million-point tiles, and the direct
+         cause of the OOM kills once tiles with real vegetation started
+         actually reaching this stage.
+
+    Binning + nearest-fill is a coarser surface than a full linear/TIN
+    interpolation, but is dramatically cheaper and is what the HAG fallback
+    was already using successfully -- using it uniformly (for HAG *and* the
+    main DTM/CHM path) keeps behavior consistent and avoids building the
+    ground surface twice.
+
+    Parameters
+    ----------
+    gx, gy, gz : np.ndarray
+        Ground point coordinates, already converted to meters.
+    x_min, y_min, x_max, y_max : float
+        Tile extent in meters (from the full point cloud, not just ground points).
+    resolution_m : float
+        Grid cell size in meters.
+
+    Returns
+    -------
+    dict with keys:
+        dtm    : 2D np.ndarray (nrows x ncols) of ground elevation (meters)
+        ncols, nrows : grid dimensions
+        x_min, y_max : grid origin (meters, north-up convention -- row 0 is
+                       the northernmost row), for reuse when indexing into dtm
+        resolution_m : echoed back for convenience
+    """
+    ncols = max(1, int(np.ceil((x_max - x_min) / resolution_m)))
+    nrows = max(1, int(np.ceil((y_max - y_min) / resolution_m)))
+
+    dtm = np.full((nrows, ncols), np.nan)
+    if gx.size > 0:
+        # Row 0 = north (y_max), consistent with the main pipeline's DSM/CHM
+        # raster convention (see Stage 7) and with rasterio's from_origin(),
+        # so this grid can be shared directly between the HAG fallback and
+        # the DSM/CHM computation without a mismatched flip.
+        col_idx = np.clip(((gx - x_min) / resolution_m).astype(int), 0, ncols - 1)
+        row_idx = np.clip(((y_max - gy) / resolution_m).astype(int), 0, nrows - 1)
+
+        dtm_sum = np.zeros((nrows, ncols))
+        dtm_count = np.zeros((nrows, ncols))
+        np.add.at(dtm_sum, (row_idx, col_idx), gz)
+        np.add.at(dtm_count, (row_idx, col_idx), 1)
+
+        with np.errstate(invalid="ignore"):
+            dtm = dtm_sum / dtm_count
+        has_ground = dtm_count > 0
+
+        # Fill grid cells with no ground returns via nearest-neighbor
+        filled_rows, filled_cols = np.where(has_ground)
+        empty_rows, empty_cols = np.where(~has_ground)
+        if empty_rows.size and filled_rows.size:
+            filled_z = dtm[filled_rows, filled_cols]
+            dtm[empty_rows, empty_cols] = griddata(
+                (filled_rows, filled_cols), filled_z,
+                (empty_rows, empty_cols), method="nearest"
+            )
+
+    return {
+        "dtm": dtm,
+        "ncols": ncols,
+        "nrows": nrows,
+        "x_min": x_min,
+        "y_max": y_max,
+        "resolution_m": resolution_m,
+    }
+
+
+def compute_vegetation_from_hag(las, to_meters: float, ground_grid: dict,
+                                 low_thresh_m: float = 0.15,
+                                 med_thresh_m: float = MIN_CANOPY_HEIGHT_M,
+                                 high_thresh_m: float = MAX_CANOPY_HEIGHT_M,
+                                 candidate_mask: np.ndarray = None) -> dict:
+    """
+    Derive a vegetation mask from height-above-ground (HAG), using an
+    already-built ground grid (see build_ground_grid()). Used as a fallback
+    when a tile's vendor classification never populated vegetation classes
+    3/4/5 (all canopy points left as Unclassified).
+
+    Parameters
+    ----------
+    las : laspy LasData
+        The already-read point cloud.
+    to_meters : float
+        Native-unit-to-meters conversion factor, from get_horizontal_unit_to_meters().
+    ground_grid : dict
+        Output of build_ground_grid() -- the shared DTM grid, built once per
+        tile and reused here rather than rebuilt.
+    low_thresh_m, med_thresh_m, high_thresh_m : float
+        Height-above-ground thresholds (meters) separating low/medium/high
+        vegetation. med_thresh_m defaults to MIN_CANOPY_HEIGHT_M and
+        high_thresh_m to MAX_CANOPY_HEIGHT_M so the derived mask lines up
+        with this pipeline's existing canopy height bounds.
+    candidate_mask : np.ndarray, optional
+        Boolean mask over las.points restricting which points are evaluated
+        as vegetation candidates (e.g. classification != 2 to exclude ground).
+        Defaults to all non-ground points if not provided.
+
+    Returns
+    -------
+    dict with keys:
+        veg_mask               : boolean array, length == len(candidate points),
+                                  True where the point is derived vegetation
+        height_above_ground_m  : HAG in meters for each candidate point
+        candidate_mask          : the boolean mask (over the full point array)
+                                  used to select candidate points
+    """
+    classification = las.classification
+    if candidate_mask is None:
+        candidate_mask = (classification != 2)
+
+    cx = las.x[candidate_mask] * to_meters
+    cy = las.y[candidate_mask] * to_meters
+    cz = las.z[candidate_mask] * to_meters
+
+    empty_result = {
+        "veg_mask": np.zeros(cx.shape[0], dtype=bool),
+        "height_above_ground_m": np.full(cx.shape[0], np.nan),
+        "candidate_mask": candidate_mask,
+    }
+
+    if cx.size == 0 or np.all(np.isnan(ground_grid["dtm"])):
+        return empty_result
+
+    dtm          = ground_grid["dtm"]
+    ncols        = ground_grid["ncols"]
+    nrows        = ground_grid["nrows"]
+    x_min        = ground_grid["x_min"]
+    y_max        = ground_grid["y_max"]
+    resolution_m = ground_grid["resolution_m"]
+
+    # Look up ground elevation at each candidate point's grid cell
+    # (row 0 = north/y_max, matching build_ground_grid's convention)
+    c_col = np.clip(((cx - x_min) / resolution_m).astype(int), 0, ncols - 1)
+    c_row = np.clip(((y_max - cy) / resolution_m).astype(int), 0, nrows - 1)
+    ground_z_at_points = dtm[c_row, c_col]
+
+    height_above_ground_m = cz - ground_z_at_points
+
+    low_veg  = (height_above_ground_m > low_thresh_m) & (height_above_ground_m <= med_thresh_m)
+    med_veg  = (height_above_ground_m > med_thresh_m) & (height_above_ground_m <= high_thresh_m)
+    high_veg = (height_above_ground_m > high_thresh_m)
+    veg_mask = low_veg | med_veg | high_veg
+
+    return {
+        "veg_mask": veg_mask,
+        "height_above_ground_m": height_above_ground_m,
+        "candidate_mask": candidate_mask,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # SECTION 0 — Derive county and year from environment / CSV
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -85,11 +307,11 @@ def derive_county_from_env() -> str:
     Parse the county name from the SM_INPUT_CSV_S3 environment variable.
 
     Expected path format:
-      s3://<bucket>/data/outputs/<County>/CentralVA_LiDAR_<County>.csv
+      s3://<bucket>/data/inputs/<County>/CentralVA_LiDAR_<County>.csv
     """
     s3_path = os.environ.get("SM_INPUT_CSV_S3", "")
     if s3_path:
-        match = re.search(r"/data/outputs/([^/]+)/", s3_path)
+        match = re.search(r"/data/inputs/([^/]+)/", s3_path)
         if match:
             return match.group(1)
         filename = s3_path.rstrip("/").split("/")[-1]
@@ -99,22 +321,47 @@ def derive_county_from_env() -> str:
     logger.warning("SM_INPUT_CSV_S3 not set or unparseable — county set to 'unknown'")
     return "unknown"
 
-
 def derive_year_from_csv(csv_path: str) -> str:
     """
-    Read the first data row of the tile CSV and return the value of a
-    'Year' / 'YEAR' / 'year' column if present. Returns 'unknown' otherwise.
+    Read the first data row of the tile CSV and return the LiDAR acquisition year
+    from the 'ProjectYea' column (VGIN data dictionary field name).
+    Returns 'unknown' if the column is absent or empty.
     """
     try:
         with open(csv_path, newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                year_val = row.get("Year", row.get("YEAR", row.get("year", "")))
-                if year_val.strip():
-                    return year_val.strip()
+                # VGIN field name is 'ProjectYea' (truncated at 10 chars by shapefile convention)
+                year_val = (
+                    row.get("ProjectYea") or
+                    row.get("PROJECTYEA") or
+                    row.get("projectyea") or
+                    row.get("Year") or       # fallback for any reformatted exports
+                    row.get("YEAR") or
+                    ""
+                )
+                if str(year_val).strip():
+                    return str(year_val).strip()
     except Exception:
         pass
     return "unknown"
+
+
+# def derive_year_from_csv(csv_path: str) -> str:
+#     """
+#     Read the first data row of the tile CSV and return the value of a
+#     'Year' / 'YEAR' / 'year' column if present. Returns 'unknown' otherwise.
+#     """
+#     try:
+#         with open(csv_path, newline="", encoding="utf-8-sig") as f:
+#             reader = csv.DictReader(f)
+#             for row in reader:
+#                 year_val = row.get("Year", row.get("YEAR", row.get("year", "")))
+#                 if year_val.strip():
+#                     return year_val.strip()
+#     except Exception:
+#         pass
+#     return "unknown"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -122,52 +369,142 @@ def derive_year_from_csv(csv_path: str) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _extract_url(cell: str) -> str:
+    """
+    Extract a plain URL from an ArcGIS HTML anchor cell.
+    ArcGIS exports download links as:  <a href=""https://..."">Download LPC</a>
+    Returns an empty string if no URL is found.
+    """
     if not cell:
         return ""
+    # Handle double-double-quote ArcGIS artefact: href=""https://...""
     match = re.search(r'href=["\']+(https?://[^"\'> ]+)', cell)
     if match:
         return match.group(1)
+    # Plain URL (no HTML wrapper)
     if cell.strip().startswith("http"):
         return cell.strip()
     return ""
 
+def load_tile_list(csv_path: str, current_only: bool = True) -> List[Tuple[str, str, str]]:
+    """
+    Returns list of (url, geotiff_filename, project_year) tuples.
+    project_year is the per-tile acquisition year from the ProjectYea column.
 
-def load_tile_list(csv_path: str, county_filter: str = None,
-                   current_only: bool = True) -> List[Tuple[str, str]]:
+    Supersession model: a row's VComment either says "Current" or
+    "Replaced VLPID<N> (<year>) Data" -- the LATTER row is the new,
+    correct one, and it names the OLD VLPID it replaced. Excluding a row
+    must be based on whether *another* row references *this* row's own
+    VLPID as replaced -- not on whether this row's own comment happens
+    to contain the word "replaced" (which was backwards: it was
+    excluding the new tile and keeping the stale one it replaced).
+    """
+    with open(csv_path, newline="", encoding="utf-8-sig") as f:
+        rows = list(csv.DictReader(f))
+
+    logger.info(
+        f"CSV Path: {csv_path} | "
+        f"Verify the file exists and is not completely empty (0 bytes) {os.path.exists(csv_path) and os.path.getsize(csv_path)}"
+    )
+
+    # Pass 1: collect every VLPID referenced as replaced by some OTHER row
+    superseded_vlpids = set()
+    if current_only:
+        for row in rows:
+            comment = row.get("VComment", row.get("VCOMMENT", ""))
+            m = re.search(r"replaced\s+vlpid\s*(\d+)", comment, re.IGNORECASE)
+            if m:
+                superseded_vlpids.add(m.group(1))
+
     tiles = []
-    skipped_superceded = 0
+    skipped_superseded = 0
     skipped_no_url = 0
 
-    with open(csv_path, newline="", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if county_filter:
-                county_val = row.get("County", row.get("COUNTY", ""))
-                if county_filter.lower() not in county_val.lower():
-                    continue
-
-            if current_only:
-                comment = row.get("VComment", row.get("VCOMMENT", ""))
-                if "replaced" in comment.lower():
-                    skipped_superceded += 1
-                    continue
-
-            url = _extract_url(row.get("PointClo_2", row.get("POINTCLO_2", "")))
-            if not url:
-                skipped_no_url += 1
+    for row in rows:
+        if current_only:
+            own_vlpid = str(row.get("VLPID", row.get("VLPID", ""))).strip()
+            if own_vlpid in superseded_vlpids:
+                skipped_superseded += 1
+                logger.info(f"SKIPPED: VLPID {own_vlpid} superseded by a newer row.")
                 continue
 
-            tile_id = row.get("TileID", row.get("TILEID", ""))
-            geotiff_filename = (f"{tile_id}_chm.tif" if tile_id
-                                else Path(url).stem + "_chm.tif")
-            tiles.append((url, geotiff_filename))
+        url = _extract_url(row.get("PointClo_2", row.get("POINTCLO_2", "")))
+        if not url:
+            skipped_no_url += 1
+            logger.info("SKIPPED: No URL.")
+            continue
+
+        tile_id = row.get("TileName", row.get("TILENAME", ""))
+        geotiff_filename = (f"{tile_id}_chm.tif" if tile_id
+                            else Path(url).stem + "_chm.tif")
+        project_year = str(
+            row.get("ProjectYea") or
+            row.get("PROJECTYEA") or
+            "unknown"
+        ).strip()
+        logger.info(f"Current Row Year: {project_year} ")
+        tiles.append((url, geotiff_filename, project_year))
 
     logger.info(
         f"Tile list loaded: {len(tiles)} tiles | "
-        f"skipped superceded={skipped_superceded} no_url={skipped_no_url}"
+        f"skipped superseded={skipped_superseded} no_url={skipped_no_url}"
     )
     return tiles
 
+# def load_tile_list(csv_path: str, current_only: bool = True) -> List[Tuple[str, str, str]]:
+#     """
+#     Returns list of (url, geotiff_filename, project_year) tuples.
+#     project_year is the per-tile acquisition year from the ProjectYea column.
+#     """
+#     tiles = []
+#     skipped_superseded = 0
+#     skipped_no_url = 0
+
+#     logger.info(
+#         f"CSV Path: {csv_path} | "
+#         f"Verify the file exists and is not completely empty (0 bytes) {os.path.exists(csv_path) and os.path.getsize(csv_path)}"
+#     )
+
+#     with open(csv_path, newline="", encoding="utf-8-sig") as f:
+#         reader = csv.DictReader(f)
+#         for row in reader:
+#             if current_only:
+#                 comment = row.get("VComment", row.get("VCOMMENT", ""))
+#                 if "replaced" in comment.lower():
+#                     skipped_superseded += 1
+#                     logger.info(
+#                         f"SKIPPED: Comment contains replaced."
+#                     )
+#                     continue
+
+#             url = _extract_url(row.get("PointClo_2", row.get("POINTCLO_2", "")))
+#             if not url:
+#                 skipped_no_url += 1
+#                 logger.info(
+#                     f"SKIPPED: No URL."
+#                 )
+#                 continue
+
+#             tile_id = row.get("TileName", row.get("TILENAME", ""))
+#             geotiff_filename = (f"{tile_id}_chm.tif" if tile_id
+#                                 else Path(url).stem + "_chm.tif")
+
+#             # Capture per-tile acquisition year from ProjectYea
+#             project_year = str(
+#                 row.get("ProjectYea") or
+#                 row.get("PROJECTYEA") or
+#                 "unknown"
+#             ).strip()
+
+#             logger.info(
+#                 f"Current Row Year: {project_year} "
+#             )
+#             tiles.append((url, geotiff_filename, project_year))
+
+#     logger.info(
+#         f"Tile list loaded: {len(tiles)} tiles | "
+#         f"skipped superseded={skipped_superseded} no_url={skipped_no_url}"
+#     )
+#     return tiles
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 2 — Thread-Safe Skip Logging
@@ -202,25 +539,29 @@ def _log_skipped(url: str, filename: str, reason: str,
         if _skip_lock:
             _skip_lock.release()
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — Core Processing Function
 # ══════════════════════════════════════════════════════════════════════════════
 
-def process_file(url: str, geotiff_filename: str,
+def process_file(url: str, geotiff_filename: str, project_year: str,
                  out_dir_geotiff: str, out_dir_centroid: str,
                  out_dir_canopy_mask: str,
                  retries: int = 3, timeout: int = 120) -> dict:
     """
     Download, decompress, and process a single VGIN LAZ tile.
 
-    Pipeline stages: 
+    Pipeline stages:
       1.  HTTP download (chunked streaming)
       2.  LAZ decompression via laspy + Laszip backend
       3.  Point classification diagnostics and skip guards
+      3.5 Shared ground grid (DTM) build — single cell-binned + nearest-fill
+          surface, built once and reused for both HAG-derived vegetation
+          (if needed) and CHM computation, replacing what used to be two
+          independently-built ground surfaces (one via griddata's Delaunay-
+          based linear interpolation).
       4.  Canopy cover — first-return ratio method
       5.  Coordinate extraction
-      6.  DTM interpolation (ground points → griddata)
+      6.  (merged into 3.5 — no separate DTM interpolation stage)
       7.  DSM rasterisation (vegetation max-return)
       8.  CHM computation (DSM − DTM) with height thresholds
       9.  Canopy cover — CHM cell fraction method
@@ -245,8 +586,10 @@ def process_file(url: str, geotiff_filename: str,
         "filename":                 geotiff_filename,
         "url":                      url,
         "n_trees":                  0,
+        "project_year":             project_year,
         "canopy_cover_firstreturn": None,
         "canopy_cover_raster":      None,
+        "veg_source":               "n/a",
         "skip_reason":              "",
         "elapsed_s":                0.0,
     }
@@ -265,8 +608,12 @@ def process_file(url: str, geotiff_filename: str,
             buffer = io.BytesIO()
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 buffer.write(chunk)
+            # getbuffer().nbytes reflects total bytes written regardless of the
+            # current stream position -- buffer.tell() after seek(0) always
+            # read back as 0, so every download was logging "Downloaded 0.0 MB"
+            # regardless of actual file size.
+            file_size_mb = buffer.getbuffer().nbytes / 1e6
             buffer.seek(0)
-            file_size_mb = buffer.tell() / 1e6
             logger.info(f"[{pid}] Downloaded {file_size_mb:.1f} MB")
 
             # Stage 2: LAZ Decompression
@@ -280,12 +627,20 @@ def process_file(url: str, geotiff_filename: str,
                                elapsed_s=time.perf_counter() - t_attempt_start)
                 return result
 
+            # Stage 2.5: Native Unit Detection
+            # Read the tile's actual X/Y/Z unit conversion factor from its
+            # embedded CRS rather than assuming meters. VGIN tiles in
+            # Virginia State Plane (ftUS) need this scaling applied before
+            # any grid math or height threshold comparison downstream.
+            to_meters = get_horizontal_unit_to_meters(las)
+
             # Stage 3: Classification Diagnostics
             classes     = las.classification
             ground_mask = (classes == 2)
             veg_mask    = (classes == 3) | (classes == 4) | (classes == 5)
             ground_pts  = int(np.count_nonzero(ground_mask))
             veg_pts     = int(np.count_nonzero(veg_mask))
+            veg_source  = "classified"
 
             if ground_pts < 10:
                 _log_skipped(url, geotiff_filename, "no_ground",
@@ -294,12 +649,75 @@ def process_file(url: str, geotiff_filename: str,
                                elapsed_s=time.perf_counter() - t_attempt_start)
                 return result
 
-            if veg_pts < 10:
-                _log_skipped(url, geotiff_filename, "no_vegetation",
-                             total_pts, ground_pts, veg_pts)
-                result.update(status="skipped", skip_reason="no_vegetation",
-                               elapsed_s=time.perf_counter() - t_attempt_start)
-                return result
+            # Stage 3.5: Shared Ground Grid (DTM) Build
+            # Coordinates converted to true meters via the detected unit
+            # factor (Stage 2.5) before any grid math -- RASTER_RESOLUTION,
+            # MIN/MAX_CANOPY_HEIGHT_M, and CROWN_RADIUS_M are all specified
+            # in meters and OUTPUT_CRS is a meters-based CRS, so working in
+            # native units here (e.g. US Survey Feet) would silently build a
+            # ~3.28x-too-fine grid and misalign every GeoTIFF written below.
+            #
+            # This grid is built ONCE, here, and reused below for both
+            # HAG-derived vegetation (if the classification scheme lacks veg
+            # classes) and the CHM computation -- replacing what used to be
+            # two independently-built ground surfaces, one via an expensive
+            # Delaunay-based griddata linear interpolation. That duplication
+            # was the direct cause of workers being OOM-killed once tiles
+            # with real vegetation started reaching the full pipeline.
+            x_gnd = las.x[ground_mask] * to_meters
+            y_gnd = las.y[ground_mask] * to_meters
+            z_gnd = las.z[ground_mask] * to_meters
+
+            x_min, x_max = float(np.min(las.x)) * to_meters, float(np.max(las.x)) * to_meters
+            y_min, y_max = float(np.min(las.y)) * to_meters, float(np.max(las.y)) * to_meters
+
+            t0 = time.perf_counter()
+            ground_grid = build_ground_grid(
+                x_gnd, y_gnd, z_gnd, x_min, y_min, x_max, y_max,
+                resolution_m=RASTER_RESOLUTION,
+            )
+            cols, rows = ground_grid["ncols"], ground_grid["nrows"]
+            dtm = ground_grid["dtm"]
+            logger.info(f"[{pid}] Ground grid built ({rows}x{cols}) in {time.perf_counter()-t0:.1f}s")
+
+            if veg_pts == 0:
+                # Classification-based vegetation is absent. This is common for
+                # earlier-vintage USGS 3DEP LPC deliveries (e.g. 2015) whose
+                # minimum required classification scheme only mandated Ground —
+                # vegetation classes 3/4/5 were an optional add-on that some
+                # projects never populated, leaving all canopy points as
+                # Unclassified (1). Before giving up, derive vegetation from
+                # height-above-ground instead of classification.
+                logger.info(
+                    f"[{pid}] No classified vegetation (classes 3/4/5) found — "
+                    f"falling back to height-above-ground derived vegetation"
+                )
+                hag_result = compute_vegetation_from_hag(
+                    las, to_meters=to_meters, ground_grid=ground_grid
+                )
+                derived_candidate_mask = hag_result["candidate_mask"]
+                derived_veg_local      = hag_result["veg_mask"]
+
+                # Expand the derived (candidate-space) mask back to full point-array space
+                veg_mask = np.zeros(total_pts, dtype=bool)
+                veg_mask[derived_candidate_mask] = derived_veg_local
+                veg_pts = int(np.count_nonzero(veg_mask))
+                veg_source = "derived_hag"
+
+                if veg_pts == 0:
+                    _log_skipped(url, geotiff_filename, "no_vegetation",
+                                 total_pts, ground_pts, veg_pts)
+                    result.update(status="skipped", skip_reason="no_vegetation",
+                                   elapsed_s=time.perf_counter() - t_attempt_start)
+                    return result
+
+                logger.info(
+                    f"[{pid}] Derived {veg_pts:,} vegetation point(s) from "
+                    f"height-above-ground (threshold: {MIN_CANOPY_HEIGHT_M}-"
+                    f"{MAX_CANOPY_HEIGHT_M} m)"
+                )
+
+            result["veg_source"] = veg_source
 
             # Stage 4: Canopy Cover — First-Return Ratio Method
             # Standard method used by USFS FIA and directly comparable to
@@ -328,32 +746,28 @@ def process_file(url: str, geotiff_filename: str,
                 f"/{first_returns_total} first returns)"
             )
 
-            # Stage 5: Coordinate Extraction
-            x_veg = las.x[veg_mask];   y_veg = las.y[veg_mask];   z_veg = las.z[veg_mask]
-            x_gnd = las.x[ground_mask]; y_gnd = las.y[ground_mask]; z_gnd = las.z[ground_mask]
-
-            x_min, x_max = float(np.min(las.x)), float(np.max(las.x))
-            y_min, y_max = float(np.min(las.y)), float(np.max(las.y))
-            cols = max(1, int(np.ceil((x_max - x_min) / RASTER_RESOLUTION)))
-            rows = max(1, int(np.ceil((y_max - y_min) / RASTER_RESOLUTION)))
-
-            grid_x, grid_y = np.meshgrid(
-                np.linspace(x_min, x_max, cols),
-                np.linspace(y_max, y_min, rows),
-            )
-
-            # Stage 6: DTM Interpolation
-            t0  = time.perf_counter()
-            dtm = griddata((x_gnd, y_gnd), z_gnd, (grid_x, grid_y), method="linear")
-            logger.info(f"[{pid}] DTM interpolated in {time.perf_counter()-t0:.1f}s")
+            # Stage 5: Coordinate Extraction (vegetation points)
+            # Ground coordinates and grid extent were already handled in
+            # Stage 3.5; this extracts just the vegetation points, in meters.
+            x_veg = las.x[veg_mask] * to_meters
+            y_veg = las.y[veg_mask] * to_meters
+            z_veg = las.z[veg_mask] * to_meters
 
             # Stage 7: DSM Rasterisation
+            # NOTE: np.maximum.at() would silently leave the entire DSM as NaN
+            # here, since np.maximum(nan, x) always returns nan -- it never
+            # actually populates a cell from an all-NaN starting array.
+            # np.fmax.at() is the NaN-aware equivalent (ignores NaN unless
+            # both operands are NaN) and is required for this accumulation
+            # pattern to work at all.
             veg_col = np.clip(((x_veg - x_min) / RASTER_RESOLUTION).astype(int), 0, cols - 1)
             veg_row = np.clip(((y_max - y_veg) / RASTER_RESOLUTION).astype(int), 0, rows - 1)
             dsm = np.full((rows, cols), np.nan)
-            np.maximum.at(dsm, (veg_row, veg_col), z_veg)
+            np.fmax.at(dsm, (veg_row, veg_col), z_veg)
 
             # Stage 8: CHM Computation
+            # dtm here is the shared ground grid from Stage 3.5 -- no separate
+            # DTM interpolation stage anymore.
             chm = dsm - dtm
             chm[(chm < MIN_CANOPY_HEIGHT_M) | (chm > MAX_CANOPY_HEIGHT_M) | np.isnan(chm)] = 0.0
 
@@ -416,6 +830,7 @@ def process_file(url: str, geotiff_filename: str,
                 n_trees=n_trees,
                 canopy_cover_firstreturn=canopy_cover_fr,
                 canopy_cover_raster=canopy_cover_raster,
+                veg_source=veg_source,
                 elapsed_s=time.perf_counter() - t_attempt_start,
             )
             logger.info(
@@ -423,6 +838,7 @@ def process_file(url: str, geotiff_filename: str,
                 f"trees={n_trees} | "
                 f"cover_fr={canopy_cover_fr:.1%} | "
                 f"cover_chm={canopy_cover_raster:.1%} | "
+                f"veg_source={veg_source} | "
                 f"elapsed={result['elapsed_s']:.1f}s"
             )
             return result
@@ -441,18 +857,46 @@ def process_file(url: str, geotiff_filename: str,
 # SECTION 4 — Parallel Orchestrator
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_parallel(tile_list: List[Tuple[str, str]],
-                 max_workers: int, county: str, year: str) -> None:
+def run_parallel(tile_list: List[Tuple[str, str, str]],
+                 max_workers: int, county: str, year: str, csv_file: str = None) -> None:
     t_run_start = time.perf_counter()
 
-    out_dir_base         = SM_OUTPUT_DIR / county
+    # When a county's source tile list is sharded across multiple parallel
+    # SageMaker jobs (e.g. CentralVA_LiDAR_Albemarle-part_aa.csv through
+    # part_aj.csv), every shard previously wrote to the same fixed-name
+    # summary files (out_dir_base / f"{county}_canopy_cover.csv", etc.) under
+    # the same S3 prefix -- whichever job finished last silently overwrote
+    # the other shards' county-level summaries (last-write-wins), even
+    # though per-tile outputs (geotiff/, canopy_mask/, centroids_raw/) never
+    # collided since tile filenames are already globally unique.
+    #
+    # Namespacing out_dir_base per part number keeps each shard's summary
+    # files distinct on S3; a separate merge step run after all parts finish
+    # can then concatenate part_aa/{county}_canopy_cover.csv through
+    # part_aj/{county}_canopy_cover.csv (etc.) into one true county-wide file.
+    #
+    # Regex-based (not a literal "part_aa"/"part_ab"/... chain) so it scales
+    # to however many parts a county is split into without code changes --
+    # currently aa through aj (10 shards), but this works for any suffix.
+    part_match = re.search(r"part_([a-z]+)", csv_file or "", re.IGNORECASE)
+    if part_match:
+        part_label = f"part_{part_match.group(1).lower()}"
+        out_dir_base = SM_OUTPUT_DIR / county / part_label
+        logger.info(f"Sharded run detected (csv_file={csv_file!r}) -> "
+                    f"writing outputs under {out_dir_base}")
+    else:
+        out_dir_base = SM_OUTPUT_DIR / county
+        logger.info(f"Sharded run not detected (csv_file={csv_file!r}) -> "
+                    f"writing outputs under {out_dir_base}")
+
+    #out_dir_base         = SM_OUTPUT_DIR / county
     out_dir_geotiff      = out_dir_base / "geotiff"
     out_dir_centroid     = out_dir_base / "centroids_raw"
     out_dir_canopy_mask  = out_dir_base / "canopy_mask"
     out_dir_logs         = out_dir_base / "logs"
 
-    combined_centroid_path  = out_dir_base / f"{county}_{year}_centroids.csv"
-    cover_summary_path      = out_dir_base / f"{county}_{year}_canopy_cover.csv"
+    combined_centroid_path  = out_dir_base / f"{county}_centroids.csv"
+    cover_summary_path      = out_dir_base / f"{county}_canopy_cover.csv"
     skip_log_path           = out_dir_logs / f"{county}_skipped_tiles.csv"
     run_summary_path        = out_dir_logs / f"{county}_run_summary.txt"
 
@@ -471,12 +915,12 @@ def run_parallel(tile_list: List[Tuple[str, str]],
     ) as executor:
         future_to_tile = {
             executor.submit(
-                process_file, url, fname,
+                process_file, url, fname, project_year,
                 str(out_dir_geotiff),
                 str(out_dir_centroid),
                 str(out_dir_canopy_mask),
-            ): (url, fname)
-            for url, fname in tile_list
+            ): (url, fname, project_year)
+            for url, fname, project_year in tile_list
         }
 
         for future in tqdm(as_completed(future_to_tile), total=len(tile_list)):
@@ -489,17 +933,29 @@ def run_parallel(tile_list: List[Tuple[str, str]],
                 logger.error(f"Worker failure: {e}")
 
     # Combine per-tile centroid CSVs into master file
+
+    # tile_id -> project_year lookup, built from tile_list (the comprehension
+    # in the ProcessPoolExecutor block above does not leak `project_year`
+    # into this scope -- comprehension loop variables are local to the
+    # comprehension in Python 3, unlike a plain `for` statement).
+    project_year_by_tile = {
+        fname.replace("_chm.tif", ""): tile_year
+        for _, fname, tile_year in tile_list
+    }
+    
     logger.info("Combining per-tile centroid CSVs into master file...")
     with open(combined_centroid_path, "w", newline="") as master:
         writer = csv.writer(master)
-        writer.writerow(["tile_id", "easting_m", "northing_m", "height_m"])
+        writer.writerow(["tile_id", "project_year", "easting_m", "northing_m", "height_m"])
         for centroid_csv in sorted(out_dir_centroid.glob("*_centroids.csv")):
             tile_id = centroid_csv.stem.replace("_centroids", "")
+            tile_project_year = project_year_by_tile.get(tile_id, "unknown")
             with open(centroid_csv, newline="") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     writer.writerow([
                         tile_id,
+                        tile_project_year,
                         row["easting_m"],
                         row["northing_m"],
                         row["height_m"],
@@ -511,18 +967,22 @@ def run_parallel(tile_list: List[Tuple[str, str]],
         writer = csv.writer(f)
         writer.writerow([
             "tile_id",
+            "project_year",
             "canopy_cover_firstreturn",
             "canopy_cover_raster",
             "n_trees",
+            "veg_source",
         ])
         for res in all_results:
             if res["status"] == "success":
                 tile_id = res["filename"].replace("_chm.tif", "")
                 writer.writerow([
                     tile_id,
+                    res.get("project_year", "unknown"),
                     res.get("canopy_cover_firstreturn", ""),
                     res.get("canopy_cover_raster", ""),
                     res.get("n_trees", 0),
+                    res.get("veg_source", "n/a"),
                 ])
 
     # County-level aggregate cover statistics
@@ -534,11 +994,19 @@ def run_parallel(tile_list: List[Tuple[str, str]],
     county_mean_fr  = sum(fr_values)  / len(fr_values)  if fr_values  else 0.0
     county_mean_chm = sum(chm_values) / len(chm_values) if chm_values else 0.0
 
+    from collections import Counter
+    
+    year_counts = Counter(r["project_year"] for r in all_results if r["status"] == "success")
+    year_summary = ", ".join(f"{yr}: {cnt} tiles" for yr, cnt in sorted(year_counts.items()))
+
+    veg_source_counts = Counter(r.get("veg_source", "n/a") for r in all_results if r["status"] == "success")
+    veg_source_summary = ", ".join(f"{src}: {cnt} tiles" for src, cnt in sorted(veg_source_counts.items()))
+
     # Run Summary
     t_total = time.perf_counter() - t_run_start
     summary_lines = [
         "=" * 60,
-        f"  LIDAR RUN SUMMARY: {county}  (year={year})",
+        f"  Acquisition years: {county}  (years={year_summary})",
         "=" * 60,
         f"  Total tiles submitted  : {len(tile_list):,}",
         f"  Successful             : {counters['success']:,}",
@@ -551,6 +1019,8 @@ def run_parallel(tile_list: List[Tuple[str, str]],
         "  CANOPY COVER (county mean across successful tiles)",
         f"  First-return ratio     : {county_mean_fr:.1%}",
         f"  CHM cell fraction      : {county_mean_chm:.1%}",
+        "",
+        f"  Vegetation source      : {veg_source_summary}",
         "",
         f"  Master centroid CSV    : {combined_centroid_path}",
         f"  Canopy cover CSV       : {cover_summary_path}",
@@ -577,12 +1047,17 @@ if __name__ == "__main__":
              "(e.g. /opt/ml/processing/input/CentralVA_LiDAR_Albemarle.csv)"
     )
     parser.add_argument(
+        "--county", required=True,
+        help="The Selected County"
+    )
+    parser.add_argument(
         "--workers", type=int, default=DEFAULT_WORKERS,
         help=f"Number of parallel worker processes (default: {DEFAULT_WORKERS})"
     )
     args = parser.parse_args()
 
-    county = derive_county_from_env()
+    #county = derive_county_from_env()
+    county = args.county
     logger.info(f"Derived county : {county}")
 
     year = derive_year_from_csv(args.csv)
@@ -594,4 +1069,6 @@ if __name__ == "__main__":
         logger.error(f"No tiles found in {args.csv}. Exiting.")
         sys.exit(1)
 
-    run_parallel(tile_list, args.workers, county, year)
+    run_parallel(tile_list, args.workers, county, year, csv_file=args.csv)
+
+
