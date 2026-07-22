@@ -41,13 +41,37 @@ export interface RiskRow {
 const BASE = DATA_BASE_URL;
 
 export async function loadForecastTrend(metric: BayesianMetric): Promise<TrendRow[]> {
-  const res = await axios.get<TrendRow[]>(`${BASE}/forecast_trend_${metric}.json`);
-  return res.data;
+  const url = `${BASE}/forecast_trend_${metric}.json`;
+  const res = await axios.get(url);
+  if (!Array.isArray(res.data)) {
+    // The TypeScript generic on axios.get<TrendRow[]>() is compile-time only --
+    // it does not validate the actual response at runtime. If the server (or,
+    // in local dev, Vite's SPA fallback) returns something else -- an HTML
+    // error page, an S3 XML error document, a wrapped object -- axios will
+    // still resolve successfully with that as res.data. Without this check,
+    // that bad data silently reaches state and crashes later inside .map(),
+    // far from the actual cause. Failing here instead gives a clear,
+    // actionable error message immediately.
+    throw new Error(
+      `Expected an array from ${url}, got ${typeof res.data}. ` +
+      `Check that the file actually exists at this path (common cause: ` +
+      `the pipeline hasn't been run with --upload-to-dashboard yet, or ` +
+      `the local dev file is missing from public/data/).`
+    );
+  }
+  return res.data as TrendRow[];
 }
 
 export async function loadRiskSummary(metric: BayesianMetric): Promise<RiskRow[]> {
-  const res = await axios.get<RiskRow[]>(`${BASE}/risk_summary_${metric}.json`);
-  return res.data;
+  const url = `${BASE}/risk_summary_${metric}.json`;
+  const res = await axios.get(url);
+  if (!Array.isArray(res.data)) {
+    throw new Error(
+      `Expected an array from ${url}, got ${typeof res.data}. ` +
+      `Check that the file actually exists at this path.`
+    );
+  }
+  return res.data as RiskRow[];
 }
 
 export function forecastImageUrl(metric: BayesianMetric): string {

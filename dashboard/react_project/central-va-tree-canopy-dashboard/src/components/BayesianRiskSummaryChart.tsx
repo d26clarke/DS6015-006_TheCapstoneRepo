@@ -1,6 +1,6 @@
 // ─── BayesianRiskSummaryChart.tsx ────────────────────────────────────────────
 // Bar chart of decline-risk probability (%) by jurisdiction, one bar per
-// scenario, for a selected forecast year (2027 or 2028). 
+// scenario, for a selected forecast year (2027 or 2028).  
 
 import {
   BarChart,

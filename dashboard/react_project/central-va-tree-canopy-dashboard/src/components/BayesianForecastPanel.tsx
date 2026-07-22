@@ -2,11 +2,11 @@
 // Self-contained section combining the static PNG (matplotlib KDE snapshot), 
 // the interactive trend chart (median + credible interval), and the
 // decline-risk bar chart -- following the same pattern as LidarCanopyPanel.tsx
-// (own state, own fetching, drops into App.tsx as a single line).
+// (own state, own fetching, drops into App.tsx as a single line). 
 
 import { useEffect, useMemo, useState } from "react";
 import { loadForecastTrend, loadRiskSummary, forecastImageUrl } from "../bayesianData";
-import type { BayesianMetric, TrendRow, RiskRow } from "./bayesianData";
+import type { BayesianMetric, TrendRow, RiskRow } from "../bayesianData";
 import { BayesianForecastTrendChart } from "./BayesianForecastTrendChart";
 import { BayesianRiskSummaryChart } from "./BayesianRiskSummaryChart";
 

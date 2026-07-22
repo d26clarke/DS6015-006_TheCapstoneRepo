@@ -1,7 +1,7 @@
 // ─── BayesianForecastTrendChart.tsx ──────────────────────────────────────────
 // Median + 95% credible interval band per scenario, across the full forecast
 // horizon, for a single selected jurisdiction. Complements the static PNG 
-// (which shows 2027/2028 KDE snapshots only) with the full year-by-year trend.
+// (which shows 2027/2028 KDE snapshots only) with the full year-by-year trend. 
 
 import {
   ComposedChart,

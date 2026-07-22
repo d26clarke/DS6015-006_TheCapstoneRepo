@@ -9,6 +9,7 @@ import SplitPanelDashboard from "./components/SplitPanelDashboard";
 import AoiTimeSeriesPanel  from "./components/AoiTimeSeriesPanel";
 import PolicyPanel from "./components/PolicyPanel";
 import LidarCanopyPanel from "./components/LidarCanopyPanel";
+import BayesianForecastPanel from "./components/BayesianForecastPanel";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -32,6 +33,8 @@ export default function App() {
         <SplitPanelDashboard />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <AoiTimeSeriesPanel />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <BayesianForecastPanel />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <PolicyPanel />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
