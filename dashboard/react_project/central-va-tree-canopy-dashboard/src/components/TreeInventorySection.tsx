@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// 1. Native Interface Definition inside the file
+// 1. Native Interface Definition inside the file 
 interface TreeInventoryRecord {
   treeId: string; // Format: TREE-XXXXX
   tagNumber: number | null;
@@ -27,12 +27,11 @@ interface TreeInventoryRecord {
 }
 
 // Configuration variables pointing to your API Architecture
-// API Gateway base URL for standard database text records mutations
-//const AWS_API_GATEWAY_URL = process.env.REACT_APP_API_URL || 'https://rqmo3xlicl.execute-api.us-east-1.amazonaws.com';
+// Single API Gateway (tree-canopy-public-gateway / rqmo3xlicl) handles both
+// the Postgres CRUD routes and photo-upload-url -- there is no separate
+// Node.js/multer upload server; that was aspirational/incorrect in an
+// earlier version of this file.
 const AWS_API_GATEWAY_URL = 'https://rqmo3xlicl.execute-api.us-east-1.amazonaws.com';
-// Dedicated Node.js route base URL for streaming binary image attachments to S3
-//const NODE_UPLOAD_BASE_URL = process.env.REACT_APP_UPLOAD_URL || 'https://rqmo3xlicl.execute-api.us-east-1.amazonaws.com';
-const NODE_UPLOAD_BASE_URL = 'https://rqmo3xlicl.execute-api.us-east-1.amazonaws.com';
 
 const BLANK_FORM: Omit<TreeInventoryRecord, 'treeId'> & { treeId: string } = {
   treeId: '',
@@ -70,6 +69,22 @@ export default function TreeInventorySection() {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+// Converts the Lambda's raw Postgres response (snake_case column names,
+// e.g. tree_id, common_name) into the camelCase shape TreeInventoryRecord
+// and the rest of this component expect. Necessary because RealDictCursor
+// in the Lambda preserves native Postgres column naming with no
+// transformation -- without this, every read (search filter, table
+// display, edit population) silently breaks since e.g. tree.treeId simply
+// doesn't exist on the real response object (it's tree.tree_id).
+function toCamelCase<T>(row: Record<string, unknown>): T {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    result[camelKey] = value;
+  }
+  return result as T;
+}
+
   // 🔍 READ ALL: Pull dataset out of your canopy_dashboard PostgreSQL cluster
   const fetchTrees = async () => {
     setIsLoading(true);
@@ -78,7 +93,8 @@ export default function TreeInventorySection() {
       const response = await fetch(`${AWS_API_GATEWAY_URL}/api/trees`);
       if (!response.ok) throw new Error('Failed to retrieve inventory tables.');
       const data = await response.json();
-      setTrees(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : [];
+      setTrees(rows.map((row) => toCamelCase<TreeInventoryRecord>(row)));
     } catch (error) {
       console.error(error);
       alert('Network Connectivity Error: Unable to sync with AWS Lambda API.');
@@ -111,40 +127,59 @@ export default function TreeInventorySection() {
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
-  //const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //  if (e.target.files && e.target.files[0]) {
-  //    setSelectedFile(e.target.files[0]);
-  //  }
-  //};
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
 
-  // 📷 AWS S3 File Multi-part Upload Connector Engine
-  const uploadImageToS3 = async (treeId: string): Promise<boolean> => {
-    if (!selectedFile) return true;
+  // 📷 Direct browser-to-S3 upload via a presigned URL.
+  // Flow: ask the Lambda for a short-lived presigned PUT URL (scoped to
+  // s3://central-va-tree-canopy-dashboard/data/tree-photos/{treeId}/...),
+  // then PUT the actual file bytes straight to S3 -- the Lambda/API Gateway
+  // never sees the binary data, avoiding their ~6MB payload limit entirely.
+  // Returns the public (CloudFront) URL to store as photoUrl, or null on failure.
+  const uploadImageToS3 = async (treeId: string): Promise<string | null> => {
+    if (!selectedFile) return null;
     setIsUploading(true);
 
-    const uploadPayload = new FormData();
-    uploadPayload.append('photo', selectedFile);
-
     try {
-      // Connects directly to your Express binary multer streaming endpoint routing logic
-      const response = await fetch(`${NODE_UPLOAD_BASE_URL}/api/trees/${treeId}/upload-photo`, {
-        method: 'POST',
-        body: uploadPayload,
-      });
+      const contentType = selectedFile.type || 'image/jpeg';
+      const fileExtension = selectedFile.name.includes('.')
+        ? '.' + selectedFile.name.split('.').pop()
+        : '.jpg';
 
-      if (!response.ok) throw new Error('S3 block asset storage upload rejected.');
-      return true;
+      // Step 1: ask the Lambda for a presigned upload URL
+      const urlResponse = await fetch(`${AWS_API_GATEWAY_URL}/api/trees/${treeId}/photo-upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType, fileExtension }),
+      });
+      if (!urlResponse.ok) throw new Error('Could not obtain an S3 upload URL from the API.');
+      const { uploadUrl, publicUrl } = await urlResponse.json();
+
+      // Step 2: PUT the actual file bytes directly to S3. The Content-Type
+      // header here MUST match what was sent when requesting the presigned
+      // URL above, or S3 will reject the request with SignatureDoesNotMatch.
+      const putResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: selectedFile,
+      });
+      if (!putResponse.ok) throw new Error('S3 rejected the direct photo upload.');
+
+      return publicUrl;
     } catch (error) {
       console.error(error);
       alert('AWS S3 Integration Failure: Field photo failed to push onto cloud bucket.');
-      return false;
+      return null;
     } finally {
       setIsUploading(false);
       setSelectedFile(null);
     }
   };
 
-  // 💾 SUBMIT PIPELINE: Coordinates Text SQL mutation with Cloud Asset storage uploads
+  // 💾 SUBMIT PIPELINE: Coordinates Cloud Asset storage uploads with the Postgres mutation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -153,6 +188,17 @@ export default function TreeInventorySection() {
     }
 
     try {
+      // Phase 1: if a new photo was selected, upload it FIRST so its real
+      // URL can be included in the record we're about to save -- doing
+      // this after the save (as before) meant the resulting photoUrl was
+      // never actually persisted to the database at all.
+      let photoUrl = formData.photoUrl;
+      if (selectedFile) {
+        const uploadedUrl = await uploadImageToS3(formData.treeId);
+        if (!uploadedUrl) return; // upload failed -- don't save a record with a stale/missing photo
+        photoUrl = uploadedUrl;
+      }
+
       // Target API Gateway URLs based on your CRUD Lambda paths
       const url = isEditing 
         ? `${AWS_API_GATEWAY_URL}/api/trees/${formData.treeId}`
@@ -162,6 +208,7 @@ export default function TreeInventorySection() {
       
       const updatedFormData = {
         ...formData,
+        photoUrl,
         lastUpdate: new Date().toISOString().split('T')[0]
       };
 
@@ -172,12 +219,6 @@ export default function TreeInventorySection() {
       });
 
       if (!response.ok) throw new Error('AWS Lambda transaction failed processing database parameters.');
-
-      // Phase 2: If Postgres confirms textual schema write, execute S3 image push
-      if (selectedFile) {
-        const uploadSuccess = await uploadImageToS3(formData.treeId);
-        if (!uploadSuccess) return; // Prevent interface reset if asset stream broken
-      }
 
       alert(isEditing ? 'Tree inventory record mutated successfully.' : 'New database tree committed successfully.');
       setFormData(BLANK_FORM);
@@ -352,19 +393,16 @@ export default function TreeInventorySection() {
                 <option value="">-- Unset --</option>
                 <option value="Well Drained (Dry)">Dry</option>
                 <option value="Poorly Drained (Wet)">Wet</option>
-                <option value="Moist">Moist</option>
+                <option value="Moderately Drained">Moist</option>
               </select>
             </label>
             <label style={labelStyle}>surroundingSurface
               <select name="surroundingSurface" value={formData.surroundingSurface ?? ''} onChange={handleInputChange} style={formInputStyle}>
                 <option value="">-- Unset --</option>
-                <option value="Grass">Grass</option>
-                <option value="Dirt">Dirt</option>
-                <option value="Soil">Soil</option>
-                <option value="Mulch">Mulch</option>
+                <option value="Turf Grass">Turf Grass</option>
+                <option value="Soil/Mulch">Soil/Mulch</option>
                 <option value="Permeable Pavers">Permeable Pavers</option>
-                <option value="Concrete">Concrete</option>
-                <option value="Asphalt">Asphalt</option>
+                <option value="Concrete/Asphalt">Concrete/Asphalt</option>
               </select>
             </label>
             <label style={labelStyle}>insertDate
@@ -379,6 +417,15 @@ export default function TreeInventorySection() {
             </label>        
             <label style={labelStyle}>Field Notes
               <textarea name="notes" value={formData.notes ?? ''} onChange={handleInputChange} style={{ ...formInputStyle, height: '60px' }} placeholder="None" />
+            </label>
+            <label style={labelStyle}>Tree Photo
+              <input type="file" accept="image/*" onChange={handleFileChange} style={formInputStyle} />
+              {selectedFile && (
+                <span style={{ fontSize: '0.75rem', color: '#334155' }}>Selected: {selectedFile.name}</span>
+              )}
+              {!selectedFile && formData.photoUrl && (
+                <img src={formData.photoUrl} alt="Current tree photo" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', marginTop: '4px' }} />
+              )}
             </label>
             <button 
             type="submit" 

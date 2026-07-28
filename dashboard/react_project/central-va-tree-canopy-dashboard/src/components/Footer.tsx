@@ -22,8 +22,8 @@ export default function Footer() {
       display: "flex", justifyContent: "space-between"
     }}>
       <span>
-        University of Virginia · DS Capstone ·{" "}
-        {meta ? meta.project_title : "Central Virginia Tree Canopy Change Detection"}
+        University of Virginia · 2026 Data Science Capstone · Project ·{" "}
+        {meta ? meta.project_title : "Central Virginia Tree Canopy Study"}
       </span>
       <span>Last updated: {meta ? meta.last_updated : "—"}</span>
     </footer>

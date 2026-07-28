@@ -1,7 +1,7 @@
 import Header from "./components/Header";
-import SMAPTimeSeries from "./components/SMAPTimeSeries";
+//import SMAPTimeSeries from "./components/SMAPTimeSeries";
 //import CanopyCoverBar from "./components/CanopyCoverBar";
-import SMAPAnnualMeans from "./components/SMAPAnnualMeans";
+//import SMAPAnnualMeans from "./components/SMAPAnnualMeans";
 import SMAPAnnualMeansAllCounties from "./components/SMAPAnnMeansAllCounty";
 import TreeInventorySection from "./components/TreeInventorySection";
 //import TreeCanopyChart from "./components/TreeCanopyChart";
@@ -9,6 +9,7 @@ import SplitPanelDashboard from "./components/SplitPanelDashboard";
 import AoiTimeSeriesPanel  from "./components/AoiTimeSeriesPanel";
 import PolicyPanel from "./components/PolicyPanel";
 import LidarCanopyPanel from "./components/LidarCanopyPanel";
+import RegressioinReviewPanel from "./components/RegressionReviewPanel";
 import BayesianForecastPanel from "./components/BayesianForecastPanel";
 import Footer from "./components/Footer";
 
@@ -18,21 +19,23 @@ export default function App() {
                   display: "flex", flexDirection: "column" }}>
       <Header />
       <main style={{ flex: 1, background: "#fff" }}>
+        <LidarCanopyPanel />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         {/* <CanopyCoverBar />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <TreeCanopyChart />
-        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} /> */}
-        <LidarCanopyPanel />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} /> 
         <SMAPTimeSeries />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SMAPAnnualMeans />
-        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} /> */}
         <SMAPAnnualMeansAllCounties />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SplitPanelDashboard />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <AoiTimeSeriesPanel />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <RegressioinReviewPanel />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <BayesianForecastPanel />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />

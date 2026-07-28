@@ -409,8 +409,9 @@ The stylesheet https://dqs7zvzytpj1t.cloudfront.net/central-va-tree-canopy-dashb
 Loading module from “https://dqs7zvzytpj1t.cloudfront.net/central-va-tree-canopy-dashboard/assets/index-BsDk-TcY.js” was blocked because of a disallowed MIME type (“text/html”).
 
 # 1. Sync all assets, but temporarily exclude CSS and JS files
-aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*.css" --exclude "*.js"
-aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable" --exclude "*.css" --exclude "*.js"
+## DoNotRun This Step !!aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*.css" --exclude "*.js"
+## DoNotRun This Step !!aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable" --exclude "*.css" --exclude "*.js"
+aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --delete --cache-control "max-age=31536000,immutable" --exclude "*.css" --exclude "*.js" --exclude "dashboard-data/*" --exclude "data/*"
 
 # 2. Sync all CSS files with the correct content-type header override
 aws s3 sync dist/ s3://central-va-tree-canopy-dashboard --exclude "*" --include "*.css" --content-type "text/css"
@@ -446,6 +447,18 @@ aws cloudfront create-invalidation --distribution-id E3KTCRUHT8MSD4 --paths "/*"
 | Charts render but show no data | JSON path in `config.ts` is wrong | Verify `DATA_BASE_URL` matches your S3/CloudFront path |
 | `npm run build` fails with TS errors | Missing `@types/plotly.js` | Run `npm install --save-dev @types/plotly.js` |
 | Blank page on CloudFront | `index.html` not set as error document | Verify CloudFront `CustomErrorResponse` 404 → `/index.html` |
+
+What is the root cause of this line item: [lidarData] https://dqs7zvzytpj1t.cloudfront.net/data/lidar/Albemarle/part_aa/Albemarle_canopy_cover.csv did not parse to a table with a "tile_id" column (got fields: <!DOCTYPE html>) -- likely a fallback/error page served with a 200 status rather than a real 404. Treating as "not present" rather than merging in garbage rows.
+
+1. The File Exists (It is Not a 404 Error)Because you can see this metadata inside S3, the file actually exists in your bucket. The "likely a fallback/error page served with a 200 status" theory from the error message happens because of how CloudFront interacts with this specific content type.2. How application/octet-stream Causes the Ingestion CrashWhen an application or browser requests a file marked as application/octet-stream, the behavior changes depending on how the data pipeline fetches it:The CloudFront Routing Loop (Most Likely): If your frontend or ingestion pipeline requests this file through a web-based client or CDN (like CloudFront) that expects readable web content, the generic binary type can trigger fallback routing rules. If CloudFront is configured to serve index.html on certain binary or unhandled behaviors, it will swap out the file data and serve the HTML page instead.The Parser Rejection: Even if the raw CSV bytes are downloaded, many strict data frameworks and CSV table parsers will read the HTTP header Content-Type: application/octet-stream and completely refuse to parse it, assuming it is an encrypted file, an executable, or corrupted garbage rows.How to Fix ItStep 1: Manually Fix the Current File in S3Open the Amazon S3 Console and navigate to your Albemarle_canopy_cover.csv file.Click the Properties tab.Scroll down to the Metadata section and click Edit.Change the Value of the Content-Type key from application/octet-stream to text/csv.
+
+aws s3 cp s3://central-va-tree-canopy-dashboard/data/lidar/Albemarle/part_aa/Albemarle_canopy_cover.csv s3://central-va-tree-canopy-dashboard/data/lidar/Albemarle/part_aa/Albemarle_canopy_cover.csv --content-type text/csv --metadata-directive REPLACE
+
+aws s3 cp \
+  s3://central-va-tree-canopy-dashboard/data/lidar/Albemarle/part_aa/Albemarle_canopy_cover.csv \
+  s3://central-va-tree-canopy-dashboard/data/lidar/Albemarle/part_aa/Albemarle_canopy_cover.csv \
+  --content-type text/csv \
+  --metadata-directive REPLACE
 
 ---
 

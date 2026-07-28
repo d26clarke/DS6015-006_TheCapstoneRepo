@@ -12,7 +12,7 @@ import "leaflet/dist/leaflet.css";
 
 import {
   loadCountyCoverData,
-  loadCountyCentroidData,
+  loadTileCentroids,
   type CoverRow,
   type CentroidRow,
 } from "../lidarData";
@@ -34,6 +34,9 @@ const COUNTIES = [
   "Rockingham",
 ];
 
+const TILE_CAP_OPTIONS = [10, 20, 30] as const;
+const DEFAULT_TILE_CAP: number = TILE_CAP_OPTIONS[1]; // 20
+
 /** Builds the geotiff/canopy_mask S3 key for a tile, respecting sharded
  *  counties' part_XX/ prefix (row._part is "" for unsharded counties). */
 function tileRasterKey(county: string, row: CoverRow, kind: "geotiff" | "canopy_mask", suffix: string) {
@@ -43,6 +46,7 @@ function tileRasterKey(county: string, row: CoverRow, kind: "geotiff" | "canopy_
 
 export default function LidarCanopyPanel() {
   const [county, setCounty] = useState(COUNTIES[0]);
+  const [tileCap, setTileCap] = useState<number>(DEFAULT_TILE_CAP);
   const [cover, setCover] = useState<CoverRow[]>([]);
   const [centroids, setCentroids] = useState<CentroidRow[]>([]);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -51,6 +55,10 @@ export default function LidarCanopyPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Load cover data for this county, capped to tileCap tiles -- for large
+  // counties (some have 1000+ tiles across all shards), this keeps the
+  // dropdown small and, since fetching stops once enough tiles are found,
+  // avoids ever downloading parts beyond what's actually needed.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -58,7 +66,7 @@ export default function LidarCanopyPanel() {
     setSelectedTileId(null);
     setCentroids([]);
 
-    loadCountyCoverData(county)
+    loadCountyCoverData(county, tileCap)
       .then((rows) => {
         if (cancelled) return;
         setCover(rows);
@@ -71,26 +79,32 @@ export default function LidarCanopyPanel() {
         if (!cancelled) setLoading(false);
       });
 
-    // Centroids can be large (hundreds of MB for a full county) -- load
-    // separately so the map/tile picker isn't blocked waiting on them.
-    loadCountyCentroidData(county).then((rows) => {
-      if (!cancelled) setCentroids(rows);
-    });
-
     return () => {
       cancelled = true;
     };
-  }, [county]);
+  }, [county, tileCap]);
 
   const selectedRow = useMemo(
     () => cover.find((r) => r.tile_id === selectedTileId) ?? null,
     [cover, selectedTileId]
   );
 
-  const tileCentroids = useMemo(
-    () => centroids.filter((c) => c.tile_id === selectedTileId),
-    [centroids, selectedTileId]
-  );
+  // Centroids are loaded per-tile, on demand, from centroids_raw/ -- NOT the
+  // county-wide merged file, which is confirmed to be tens of millions of
+  // rows (multiple GB) for some counties and would hang a browser tab.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedRow) {
+      setCentroids([]);
+      return;
+    }
+    loadTileCentroids(county, selectedRow.tile_id, selectedRow._part).then((rows) => {
+      if (!cancelled) setCentroids(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [county, selectedRow]);
 
   return (
     <section style={{ padding: "1.5rem 2rem", fontFamily: "sans-serif" }}>
@@ -107,6 +121,19 @@ export default function LidarCanopyPanel() {
             >
               {COUNTIES.map((c) => (
                 <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Max tiles:{" "}
+            <select
+              value={tileCap}
+              onChange={(e) => setTileCap(Number(e.target.value))}
+              style={{ padding: "0.3rem 0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
+            >
+              {TILE_CAP_OPTIONS.map((n) => (
+                <option key={n} value={n}>{n}</option>
               ))}
             </select>
           </label>
@@ -166,7 +193,7 @@ export default function LidarCanopyPanel() {
                 />
               ))}
             {!showMask && <ChmHeightLegend />}
-            {showTrees && <TreeCentroidsLayer centroids={tileCentroids} />}
+            {showTrees && <TreeCentroidsLayer centroids={centroids} />}
           </MapContainer>
         </div>
       )}

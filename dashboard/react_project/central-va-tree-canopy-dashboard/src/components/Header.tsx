@@ -9,10 +9,14 @@ export default function Header() {
     }}>
       <div>
         <h1 style={{ margin: 0, fontSize: "1.4rem" }}>
-          Central Virginia Tree Canopy Change Detection
+          Central Virginia Tree Canopy Study
         </h1>
         <p style={{ margin: 0, fontSize: "0.85rem", opacity: 0.8 }}>
-          City of Charlottesville + 6 Counties · 2015–2020 · USGS 3DEP LiDAR + SMAP
+          City of Charlottesville + 6 Counties
+          USGS 3DEP LiDAR 2015–2020 
+          SMAP SPL3SMP_E  2019 - 2023 
+          GEDI Level 2A 2019 - 2025 
+          GEDI Level 2B 2019 - 2025 
         </p>
       </div>
       <a
