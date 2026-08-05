@@ -55,6 +55,26 @@ export default function LidarCanopyPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset cover/selectedTileId/centroids SYNCHRONOUSLY, in the same event
+  // handler that changes county -- not inside a useEffect. This matters:
+  // county updates immediately on selection, but if the reset instead
+  // happened inside the cover-fetching effect (as it did previously), there
+  // is a render in between where `county` already reflects the NEW county
+  // but `cover`/`selectedTileId` (and therefore the derived `selectedRow`)
+  // still reflect the OLD one. The centroid-loading effect's dependency
+  // array is [county, selectedRow] -- county alone changing is enough to
+  // re-fire it, and on that exact render it fires with the new county paired
+  // with the previous county's stale tile/part, producing a nonsensical
+  // fetch (e.g. Charlottesville's path with Albemarle's tile ID and part).
+  // Resetting here, in the same synchronous update as setCounty, means
+  // selectedRow is already null by the very next render -- no stale window.
+  function handleCountyChange(newCounty: string) {
+    setCounty(newCounty);
+    setCover([]);
+    setSelectedTileId(null);
+    setCentroids([]);
+  }
+
   // Load cover data for this county, capped to tileCap tiles -- for large
   // counties (some have 1000+ tiles across all shards), this keeps the
   // dropdown small and, since fetching stops once enough tiles are found,
@@ -63,8 +83,6 @@ export default function LidarCanopyPanel() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setSelectedTileId(null);
-    setCentroids([]);
 
     loadCountyCoverData(county, tileCap)
       .then((rows) => {
@@ -116,7 +134,7 @@ export default function LidarCanopyPanel() {
             County:{" "}
             <select
               value={county}
-              onChange={(e) => setCounty(e.target.value)}
+              onChange={(e) => handleCountyChange(e.target.value)}
               style={{ padding: "0.3rem 0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
             >
               {COUNTIES.map((c) => (

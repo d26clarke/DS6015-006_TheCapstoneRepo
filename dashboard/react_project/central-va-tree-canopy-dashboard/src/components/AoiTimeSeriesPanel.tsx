@@ -78,17 +78,19 @@ export const AOI_DATASET_META: Record<
 
 // ── Color palette (consistent with SplitPanelDashboard) ──────────────────────
 const JURIS_COLORS: Record<string, string> = {
-  Albemarle:       "#2d6a4f",
-  Augusta:         "#40916c",
-  Buckingham:      "#1a759f",
-  Charlottesville: "#52b788",
-  Fluvanna:        "#74c69d",
-  Greene:          "#95d5b2",
-  Louisa:          "#b7e4c7",
-  Nelson:          "#d8f3dc",
-  Orange:          "#1b4332",
-  Rockingham:      "#168aad",
+  Albemarle: "#1b4332",
+  Augusta: "#e76f51",
+  Buckingham: "#2a9d8f",
+  Charlottesville: "#e9c46a",
+  Fluvanna: "#264653",
+  Greene: "#8338ec",
+  Louisa: "#0077b6",
+  Nelson: "#d62828",
+  Rockingham: "#606c38",
 };
+
+// ── Excluded jurisdictions (data quality issues) ──────────────────
+const EXCLUDED_JURISDICTIONS = ["Rockingham", "Augusta"];
 
 const LAG1_COLOR = "#f1a340";
 const LAG2_COLOR = "#998ec3";
@@ -134,7 +136,9 @@ export default function AoiTimeSeriesPanel({
   // ── Derive jurisdiction list from loaded data ──────────────────────────────
   const jurisdictions = Array.from(
     new Set(aoiData.map((r) => r.jurisdiction))
-  ).sort();
+  )
+    .filter((j) => !EXCLUDED_JURISDICTIONS.includes(j))
+    .sort();
 
   // ── Build chart rows: one per year, all jurisdictions as columns ───────────
   const years = Array.from(new Set(aoiData.map((r) => r.year))).sort();
@@ -579,6 +583,7 @@ const styles: Record<string, React.CSSProperties> = {
     border:       "1px solid #bbb",
     borderRadius: "4px",
     background:   "#fff",
+    color:        "#333",
     cursor:       "pointer",
   },
   clearBtn: {

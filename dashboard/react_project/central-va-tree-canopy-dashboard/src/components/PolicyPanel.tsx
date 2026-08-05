@@ -84,6 +84,8 @@ export interface PolicyRow {
 
 const DATA_KEY = "policy_panel_dataset.json";
 
+const EXCLUDED_JURISDICTIONS = ["Rockingham", "Augusta"];
+
 const JURISDICTIONS = [
   "Albemarle",
   "Augusta",
@@ -94,7 +96,7 @@ const JURISDICTIONS = [
   "Louisa",
   "Nelson",
   "Rockingham",
-];
+].filter((j) => !EXCLUDED_JURISDICTIONS.includes(j));
 
 const JURIS_COLORS: Record<string, string> = {
   Albemarle:       "#2563eb",

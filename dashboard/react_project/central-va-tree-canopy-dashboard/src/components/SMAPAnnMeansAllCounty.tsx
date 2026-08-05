@@ -19,6 +19,22 @@ interface CountySoilData {
   n_pixels: number;   
 }
 
+// ── Excluded jurisdictions (data quality issues) ──────────────────────────
+const EXCLUDED_JURISDICTIONS = ["Rockingham", "Augusta"];
+
+// ── Custom county color palette (kept consistent with SplitPanelDashboard) ──
+const COUNTY_COLORS: Record<string, string> = {
+  Albemarle: "#1b4332",
+  Augusta: "#e76f51",
+  Buckingham: "#2a9d8f",
+  Charlottesville: "#e9c46a",
+  Fluvanna: "#264653",
+  Greene: "#8338ec",
+  Louisa: "#0077b6",
+  Nelson: "#d62828",
+  Rockingham: "#606c38",
+};
+
 export default function SMAPAnnualMeansAllCounties() {
   const [allData, setAllData] = useState<CountySoilData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -32,7 +48,9 @@ export default function SMAPAnnualMeansAllCounties() {
   if (loading) return <div>Loading environmental data...</div>;
 
   // 1. Extract unique, alphabetically sorted county names
-  const counties = Array.from(new Set(allData.map(item => item.county))).sort();
+  const counties = Array.from(new Set(allData.map(item => item.county)))
+    .filter(c => !EXCLUDED_JURISDICTIONS.includes(c))
+    .sort();
 
   // 2. Generate a separate trace for every single county dynamically
   const traces = counties.map(countyName => {
@@ -41,15 +59,17 @@ export default function SMAPAnnualMeansAllCounties() {
     
     // Sort chronological data by year to prevent zig-zag rendering lines
     const sortedRecords = countyRecords.sort((a, b) => a.year - b.year);
+    
+    const color = COUNTY_COLORS[countyName] ?? "#888";
 
     return {
       x: sortedRecords.map(row => row.year),
       y: sortedRecords.map(row => row.sm_mean_m3m3),
       type: 'scatter' as const,
       mode: 'lines+markers' as const,
-      name: countyName, // This value text populates your chart legend names automatically
-      marker: { size: 6 },
-      line: { width: 2 } // Plotly assigns distinct color palettes to traces by default
+      name: countyName,
+      marker: { size: 6, color },
+      line: { width: 2, color },
     };
   });
 

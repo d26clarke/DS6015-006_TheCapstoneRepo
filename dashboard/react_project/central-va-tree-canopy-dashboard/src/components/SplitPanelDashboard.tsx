@@ -96,15 +96,15 @@ const JURISDICTIONS = Object.keys(GEOJSON_KEYS);
 
 // ── Recharts line colors ──────────────────────────────────────────────────────
 const JURIS_COLORS: Record<string, string> = {
-  Albemarle:       "#2d6a4f",
-  Augusta:         "#40916c",
-  Buckingham:      "#588157",
-  Charlottesville: "#52b788",
-  Fluvanna:        "#74c69d",
-  Greene:          "#95d5b2",
-  Louisa:          "#b7e4c7",
-  Nelson:          "#d8f3dc",
-  Rockingham:      "#1b4332",
+  Albemarle: "#1b4332",
+  Augusta: "#e76f51",
+  Buckingham: "#2a9d8f",
+  Charlottesville: "#e9c46a",
+  Fluvanna: "#264653",
+  Greene: "#8338ec",
+  Louisa: "#0077b6",
+  Nelson: "#d62828",
+  Rockingham: "#606c38",
 };
 
 // ── Color constants ───────────────────────────────────────────────────────────
@@ -571,11 +571,11 @@ const styles: Record<string, React.CSSProperties> = {
   headerSub: { margin: "0.15rem 0 0", fontSize: "0.75rem", opacity: 0.8 },
   controls: { display: "flex", alignItems: "center", gap: "1.5rem", padding: "0.5rem 1.5rem", background: "#fff", borderBottom: "1px solid #ddd", flexShrink: 0 },
   label: { fontSize: "0.85rem", color: "#333", display: "flex", alignItems: "center", gap: "0.3rem" },
-  select: { fontSize: "0.85rem", padding: "0.2rem 0.4rem", border: "1px solid #bbb", borderRadius: "4px", background: "#fff", cursor: "pointer" },
+  select: { fontSize: "0.85rem", padding: "0.2rem 0.4rem", border: "1px solid #bbb", borderRadius: "4px", background: "#fff", color: "#333", cursor: "pointer" },
   clearBtn: { fontSize: "0.8rem", padding: "0.25rem 0.6rem", background: "#ff7800", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" },
   splitPanel: { display: "flex", flex: 1, overflow: "hidden" },
-  mapPanel: { flex: "0 0 50%", position: "relative", borderRight: "2px solid #ddd" },
-  chartPanel: { flex: "0 0 50%", overflowY: "auto", padding: "1rem 1.25rem", background: "#fff" },
+  mapPanel: { flex: "0 0 50%", position: "relative", borderRight: "2px solid #ddd", boxSizing: "border-box" },
+  chartPanel: { flex: "0 0 50%", overflowY: "auto", padding: "1rem 1.25rem", background: "#fff", boxSizing: "border-box" },
   chartTitle: { margin: "0 0 0.25rem", fontSize: "0.95rem", color: "#1b4332", fontWeight: 700 },
   chartSubtitle: { margin: "0.75rem 0 0.25rem", fontSize: "0.8rem", color: "#555", fontWeight: 600 },
   dataNote: { marginTop: "0.75rem", fontSize: "0.72rem", color: "#888", lineHeight: 1.5, borderTop: "1px solid #eee", paddingTop: "0.5rem" },

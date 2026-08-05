@@ -43,7 +43,7 @@ const LAG_RAMP: ColorStop[] = [
 
 /** Select the appropriate color ramp for a given metric */
 function rampForMetric(metric: MetricKey): ColorStop[] {
-  if (metric === "mean_canopy_cover") return GREEN_RAMP;
+  if (metric === "mean_canopy_cover" || metric === "canopy_height_mean_m") return GREEN_RAMP;
   if (metric === "sm_mean_m3m3")      return BLUE_RAMP;
   return LAG_RAMP; // sm_mean_lag1, sm_mean_lag2
 }

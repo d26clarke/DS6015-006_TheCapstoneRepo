@@ -15,6 +15,8 @@ const METRIC_LABELS: Record<BayesianMetric, string> = {
   cover: "Canopy Cover (fraction)",
 };
 
+const EXCLUDED_JURISDICTIONS = ["Rockingham", "Augusta"];
+
 export default function BayesianForecastPanel() {
   const [metric, setMetric] = useState<BayesianMetric>("height");
   const [trend, setTrend] = useState<TrendRow[]>([]);
@@ -35,7 +37,8 @@ export default function BayesianForecastPanel() {
         if (cancelled) return;
         setTrend(trendData);
         setRisk(riskData);
-        const firstJuris = [...new Set(trendData.map((r) => r.jurisdiction))][0];
+        const firstJuris = [...new Set(trendData.map((r) => r.jurisdiction))]
+          .filter((j) => !EXCLUDED_JURISDICTIONS.includes(j))[0];
         setJurisdiction(firstJuris ?? null);
       })
       .catch((e) => {
@@ -51,7 +54,9 @@ export default function BayesianForecastPanel() {
   }, [metric]);
 
   const jurisdictions = useMemo(
-    () => [...new Set(trend.map((r) => r.jurisdiction))],
+    () => [...new Set(trend.map((r) => r.jurisdiction))].filter(
+      (j) => !EXCLUDED_JURISDICTIONS.includes(j)
+    ),
     [trend]
   );
 

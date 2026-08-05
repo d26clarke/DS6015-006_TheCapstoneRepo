@@ -48,6 +48,42 @@ const PART_SUFFIXES = Array.from({ length: MAX_PARTS }, (_, i) =>
   "a" + String.fromCharCode("a".charCodeAt(0) + i)
 ); // ["aa", "ab", ..., "aj"]
 
+async function fetchJson<T>(url: string): Promise<T[] | null> {
+  try {
+    const res = await axios.get<string>(url, { responseType: "text" });
+
+    // Parse manually rather than letting axios auto-parse JSON: a hosting
+    // fallback (e.g. CloudFront serving index.html with a 200 status for a
+    // path that doesn't exist) would otherwise silently come through as a
+    // raw string res.data instead of throwing -- same lesson learned from
+    // fetchCsv's tile_id guard, just for a different response shape.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(res.data);
+    } catch {
+      console.warn(
+        `[lidarData] ${url} did not parse as JSON -- likely a fallback/error ` +
+        `page served with a 200 status rather than a real 404. Treating as ` +
+        `"not present" rather than merging in garbage rows.`
+      );
+      return null;
+    }
+
+    if (!Array.isArray(parsed)) {
+      console.warn(
+        `[lidarData] ${url} parsed as JSON but is not an array (got ${typeof parsed}) ` +
+        `-- treating as "not present".`
+      );
+      return null;
+    }
+
+    return parsed as T[];
+  } catch {
+    // 404 or any other fetch failure -- treat as "not present", same as fetchCsv.
+    return null;
+  }
+}
+
 async function fetchCsv<T>(url: string): Promise<T[] | null> {
   try {
     const res = await axios.get<string>(url, { responseType: "text" });
@@ -175,6 +211,13 @@ export async function loadCountyCentroidData(county: string): Promise<CentroidRo
  * total tiles a county has, since you're only ever fetching the one tile
  * currently selected rather than the entire county's combined data.
  *
+ * Tries the JSON version first (immune to the CloudFront-fallback-parsed-
+ * as-CSV problem, since JSON.parse throws hard on non-JSON content where a
+ * forgiving CSV parser would not), falling back to CSV automatically for
+ * counties not yet converted by convert_centroids_to_json.py. No further
+ * code change is needed as more counties get converted -- each one starts
+ * using JSON the moment its .json file exists in S3.
+ *
  * @param part The tile's shard (e.g. "part_aa"), or "" for an unsharded
  *   county -- same value as CoverRow._part for this tile.
  */
@@ -185,8 +228,13 @@ export async function loadTileCentroids(
 ): Promise<CentroidRow[]> {
   const base = `${DATA_BASE_URL}/lidar/${county}`;
   const partSegment = part ? `${part}/` : "";
-  const url = `${base}/${partSegment}centroids_raw/${tileId}_centroids.csv`;
+  const pathBase = `${base}/${partSegment}centroids_raw/${tileId}_centroids`;
 
-  const rows = await fetchCsv<Omit<CentroidRow, "_part">>(url);
-  return rows?.map((r) => ({ ...r, _part: part })) ?? [];
+  const jsonRows = await fetchJson<Omit<CentroidRow, "_part">>(`${pathBase}.json`);
+  if (jsonRows !== null) {
+    return jsonRows.map((r) => ({ ...r, _part: part }));
+  }
+
+  const csvRows = await fetchCsv<Omit<CentroidRow, "_part">>(`${pathBase}.csv`);
+  return csvRows?.map((r) => ({ ...r, _part: part })) ?? [];
 }

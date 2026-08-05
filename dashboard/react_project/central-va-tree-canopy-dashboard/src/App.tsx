@@ -11,6 +11,7 @@ import PolicyPanel from "./components/PolicyPanel";
 import LidarCanopyPanel from "./components/LidarCanopyPanel";
 import RegressioinReviewPanel from "./components/RegressionReviewPanel";
 import BayesianForecastPanel from "./components/BayesianForecastPanel";
+import VisualizationGallery from "./components/VisualizationGallery";
 import Footer from "./components/Footer";
 
 export default function App() {
@@ -30,6 +31,8 @@ export default function App() {
         <SMAPAnnualMeans />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} /> */}
         <SMAPAnnualMeansAllCounties />
+        <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
+        <VisualizationGallery />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
         <SplitPanelDashboard />
         <hr style={{ border: "none", borderTop: "1px solid #e9ecef", margin: "0 2rem" }} />
