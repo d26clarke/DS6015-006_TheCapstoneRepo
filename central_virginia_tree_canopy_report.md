@@ -2,6 +2,8 @@
 
 ## Draft Capstone Report — UVA School of Data Science, 2026
 
+## Ryan Adoremos, Derrick D. Clarke and Kyle Hoffman
+
 ## Executive Summary
 
 This report responds to the sponsor's request for data science support across three study areas: tree canopy and ecosystem services, invasive species management, and policy decision-making and impact modeling for Central Virginia. The project team designed and implemented an end-to-end data pipeline integrating airborne LiDAR (VGIN/USGS 3DEP), NASA GEDI spaceborne LiDAR (Level 2A canopy height, Level 2B canopy cover), NASA SMAP soil moisture, and county-level administrative data (education, crime, health, demographic) across nine Central Virginia jurisdictions plus the City of Charlottesville. The team built production SageMaker processing pipelines, a hierarchical Bayesian forecasting model, a multivariate regression framework with built-in statistical review diagnostics, an interactive React dashboard for sponsor and stakeholder use (live at [https://dqs7zvzytpj1t.cloudfront.net/](https://dqs7zvzytpj1t.cloudfront.net/)), and a field data-collection application (photo-enabled tree inventory, backed by AWS Lambda and PostgreSQL) for ground-truthing remote-sensing estimates against individually surveyed trees.
