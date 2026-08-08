@@ -4,7 +4,9 @@
 
 ## Executive Summary
 
-This report responds to the sponsor's request for data science support across three study areas: tree canopy and ecosystem services, invasive species management, and policy decision-making and impact modeling for Central Virginia. The project team designed and implemented an end-to-end data pipeline integrating airborne LiDAR (VGIN/USGS 3DEP), NASA GEDI spaceborne LiDAR (Level 2A canopy height, Level 2B canopy cover), NASA SMAP soil moisture, and county-level administrative data (education, crime, health, demographic) across nine Central Virginia jurisdictions plus the City of Charlottesville. The team built production SageMaker processing pipelines, a hierarchical Bayesian forecasting model, a multivariate regression framework with built-in statistical review diagnostics, and an interactive React dashboard for sponsor and stakeholder use.
+This report responds to the sponsor's request for data science support across three study areas: tree canopy and ecosystem services, invasive species management, and policy decision-making and impact modeling for Central Virginia. The project team designed and implemented an end-to-end data pipeline integrating airborne LiDAR (VGIN/USGS 3DEP), NASA GEDI spaceborne LiDAR (Level 2A canopy height, Level 2B canopy cover), NASA SMAP soil moisture, and county-level administrative data (education, crime, health, demographic) across nine Central Virginia jurisdictions plus the City of Charlottesville. The team built production SageMaker processing pipelines, a hierarchical Bayesian forecasting model, a multivariate regression framework with built-in statistical review diagnostics, an interactive React dashboard for sponsor and stakeholder use (live at [https://dqs7zvzytpj1t.cloudfront.net/](https://dqs7zvzytpj1t.cloudfront.net/)), and a field data-collection application (photo-enabled tree inventory, backed by AWS Lambda and PostgreSQL) for ground-truthing remote-sensing estimates against individually surveyed trees.
+
+**Status by study area, stated directly:** Tree Canopy and Ecosystem Services, and Policy Decision-Making and Impact Modeling, are substantially delivered (Sections 3–7). Invasive Species Management has not yet been started as its own workstream; Section 5.3 addresses this directly, including what the existing GEDI/SMAP pipeline can and cannot contribute toward it.
 
 A central finding of this work is methodological as much as substantive: with only 9–10 jurisdictions in the study area, standard regression and even Bayesian techniques are highly sensitive to sample size, and several apparently "significant" results were found — on closer diagnostic inspection — to be statistical artifacts rather than real policy signals. Rather than treat this as a limitation to hide, the team built the sensitivity/robustness checking directly into the analysis pipeline, producing machine-readable "review artifacts" that flag exactly which findings should and should not be trusted, and why, in plain language. This is intended to let internal team members and the sponsor jointly approve or deny each finding before it reaches a policy recommendation.
 
@@ -90,11 +92,21 @@ The Soil Moisture Active Passive satellite (operating since April 2015) measures
 
 ## 4. Analytical Framework
 
-### 4.1 Tree Canopy Extraction and Change Detection
+### 4.1 Research Hypotheses
+
+Three specific, testable hypotheses connect the remote-sensing data sources to the statistical methods used in this study, beyond the sponsor's overarching policy hypothesis (Section 4.3):
+
+*   **H1 (GEDI Canopy Height vs. SMAP Soil Moisture):** jurisdiction-level GEDI Level 2A canopy height is positively associated with SMAP-derived soil moisture, and responds positively to the prior year's soil moisture availability. Null (H1₀): canopy height varies independently of soil moisture once prior-year canopy height is accounted for.
+*   **H2 (GEDI Canopy Cover vs. SMAP Soil Moisture):** jurisdiction-level GEDI Level 2B canopy cover is positively associated with mean soil moisture and negatively associated with soil-moisture volatility. Null (H2₀): canopy cover varies independently of both.
+*   **H3 (Bayesian Scenario Forecast):** under the Severe Drought scenario, posterior forecast distributions for both canopy height and canopy cover show a materially higher probability of decline below baseline by 2028, relative to the Climate Recovery scenario. Null (H3₀): decline probability does not differ meaningfully between scenarios.
+
+H1 and H2 are evaluated indirectly through the fitted coefficients of the hierarchical Bayesian model (Section 4.4) rather than a separate significance test — the posterior distribution of each coefficient directly expresses the evidence for or against the relationship. H3 is evaluated directly via the decline-risk probabilities the model produces.
+
+### 4.2 Tree Canopy Extraction and Change Detection
 
 Canopy height and canopy cover fraction are computed per tile via two independent, cross-validated methods: (1) first-return ratio (vegetation-classified first laser returns ÷ total first returns — directly comparable to GEDI cover fraction) and (2) CHM cell-fraction (share of raster cells exceeding the canopy height threshold). Both methods are reported side by side in all outputs so discrepancies are visible rather than hidden behind a single number.
 
-### 4.2 Multivariate Regression — Policy Impact Modeling
+### 4.3 Multivariate Regression — Policy Impact Modeling
 
 Following the sponsor's hypothesized framework —
 
@@ -116,7 +128,7 @@ where Y is the outcome (SOL pass rate, violent crime total, obesity/diabetes/men
 
 To make this kind of scrutiny a standing feature of the analysis rather than a one-time manual exercise, the team built an automated diagnostic layer (leverage/Cook's distance/VIF for cross-sectional models; clustered-vs-robust standard error sensitivity for panel models) that attaches a plain-language "confidence flag" list and a one-line recommendation to every regression result before it is presented to internal reviewers — e.g., "Do NOT use for policy decisions without further data collection — statistical result is fragile" versus "Statistically significant and passes basic robustness checks — still treat as hypothesis-generating given small N." This produces a machine-readable review artifact (JSON) intended specifically to support the internal team's approve/deny workflow for any finding before it is cited externally.
 
-### 4.3 Bayesian Hierarchical Forecasting
+### 4.4 Bayesian Hierarchical Forecasting
 
 A hierarchical autoregressive Bayesian model (PyMC) estimates jurisdiction-level canopy trajectories as a function of SMAP soil moisture (mean and volatility) and the prior year's canopy value, with partial pooling of jurisdiction-level intercepts:
 
@@ -126,7 +138,7 @@ This model is used to run forward scenario simulations (2024–2028) under two i
 
 **Methodological note carried forward from the underlying data:** because Charlottesville's GEDI record lacks certain years relative to the other jurisdictions, its forecast horizon effectively starts one year further from its last real observation than other jurisdictions' forecasts do. This is explicitly logged and flagged in the pipeline output rather than silently absorbed, pending a team decision on whether a different treatment (e.g., a uniform years-ahead convention) would better serve the policy audience.
 
-### 4.4 Sensitivity of Canopy Cover Estimates to the GEDI Height Filter Threshold
+### 4.5 Sensitivity of Canopy Cover Estimates to the GEDI Height Filter Threshold
 
 This question — whether a 2-meter minimum canopy height filter meaningfully changes the cover estimate relative to a 1-meter or no filter — was raised as an anticipated audience/reviewer question, given the observed pattern of small ornamental shrub plantings replacing mature trees in developed areas. The team's assessment, intended for the report's Limitations and Assumptions section:
 
@@ -168,11 +180,31 @@ This study's combined canopy height, canopy cover, and soil moisture datasets di
 
 **Recommended framing for RCA engagement:** identify specific sub-watersheds within Charlottesville/Albemarle County showing the greatest canopy decline, and connect this study's metrics directly to RCA's ongoing buffer-planting and restoration frameworks as a basis for a formal collaboration proposal.
 
+### 5.3 Invasive Species Management — status and what GEDI/SMAP can and cannot contribute
+
+This study area has not been started as its own workstream: no spatial invasion-risk model, invasive-species occurrence data, or dedicated dashboard view exists yet. This is stated directly rather than implied to be covered by the canopy or soil-moisture pipelines, which were built for a different purpose.
+
+Within that limit, two supporting uses are genuinely available from data already in production, and are reflected in the SWCD/RCA decision support above: (1) **differential diagnosis** — when a LiDAR-detected canopy decline coincides with a sustained SMAP soil-moisture deficit over the same period, drought becomes the leading explanatory hypothesis, narrowing the remaining candidates (pest, disease, clearing) that would otherwise need field verification; and (2) **post-disturbance risk prioritization** — canopy-mortality areas identified via LiDAR change detection flag locations structurally vulnerable to invasive colonization, supporting salvage/replanting prioritization even without confirming a species is present.
+
+What neither sensor can do: identify vegetation species or type. GEDI measures only structural metrics (height, cover); SMAP measures only soil moisture. A complete invasive species phase would need the sponsor's originally requested detection method — multispectral or hyperspectral imagery (e.g., Sentinel-2, NAIP) for reflectance-based detection — and real invasive-species occurrence data (USDA/state databases or field surveys) to model against, layered on top of, not replacing, the existing pipeline.
+
 ## 6. Technical Infrastructure and Reproducibility
 
 All data acquisition and processing runs as versioned, parameterized AWS SageMaker Processing Jobs (not ad hoc notebook execution), specifically to avoid a class of failure encountered repeatedly during development: notebooks whose cells depend on a specific, never-restarted kernel session losing critical in-memory state (fitted models, computed variables) on any restart, silently producing incomplete or incorrect results on rerun. Each pipeline stage (LiDAR, GEDI Level 2A, GEDI Level 2B, Bayesian forecasting, multivariate regression + review diagnostics) is a standalone script with explicit inputs/outputs, independently testable, and where applicable, persists intermediate model state (e.g., fitted Bayesian traces) to allow later stages to run as genuinely separate jobs.
 
-**Interactive dashboard:** a React/TypeScript dashboard (Leaflet + Recharts) provides the sponsor and stakeholders with an interactive choropleth map (canopy height, canopy cover, soil moisture, and lag metrics, selectable by year and jurisdiction), per-tile canopy height/mask raster viewing, tree-crown centroid visualization, canopy cover and vegetation-source-quality summaries, Bayesian forecast trend charts with credible intervals, and the regression review artifacts described above.
+**Interactive dashboard:** live at [https://dqs7zvzytpj1t.cloudfront.net/](https://dqs7zvzytpj1t.cloudfront.net/), a React/TypeScript dashboard (Leaflet + Recharts) provides the sponsor and stakeholders with an interactive choropleth map (canopy height, canopy cover, soil moisture, and lag metrics, selectable by year and jurisdiction), per-tile canopy height/mask raster viewing, tree-crown centroid visualization, canopy cover and vegetation-source-quality summaries, Bayesian forecast trend charts with credible intervals, the regression review artifacts described above, and a visualization gallery of the underlying GEDI/SMAP analysis outputs.
+
+### 6.1 Field Data Collection: Tree Inventory Application
+
+Beyond remote-sensing-derived estimates, the team built and tested an end-to-end field data-collection tool: a React form backed by AWS Lambda, API Gateway, and a PostgreSQL database, allowing field staff to record individually surveyed trees (species, DBH, height, condition, GPS location, land-use context) with direct photo upload to S3 via presigned URLs. This provides ground-truth records with height and location fields directly comparable to the LiDAR/GEDI pipeline's tree-crown centroid data, and is a natural future validation and integration target (Section 6.2).
+
+### 6.2 Recently Requested Additions: Tallest-Tree Map, Height-Range Database, and Data Dictionary
+
+The sponsor separately requested a digital map identifying the location of trees in the highest canopy-height range, a database of tree counts per height range by political/environmental boundary, and a supporting data dictionary. Assessed individually against what has actually been built:
+
+*   **Data dictionary — substantially delivered.** A four-class height stratification has been proposed and specified, along with a formal data dictionary. Three of its four defined tables document systems already fully built and operational: the tree-crown centroid schema and tile-level canopy cover summary are real, existing pipeline outputs, and the field-verified tree inventory schema is the actual data model of the Tree Inventory application (Section 6.1) — built, tested, and in current use. Only the fourth table (derived height-range classification fields) remains conceptual.
+*   **Height-range aggregation database — not yet built.** The proposed schema (jurisdiction, environmental zone, height class, tree count, project year) is defined; no aggregation implementation exists yet.
+*   **Digital map of highest-range trees — not yet built.** The dashboard's existing tree-crown centroid rendering could support a height-filtered view with a defined, modest amount of additional work; that filtering has not yet been implemented.
 
 ## 7. Deliverables (2026)
 
@@ -182,7 +214,9 @@ All data acquisition and processing runs as versioned, parameterized AWS SageMak
 *   Spatial datasets, rasters (CHM, canopy mask), and tree-crown centroid point data, per tile and county.
 *   Statistical analysis report, including the fixed-effects/cross-sectional regression results with attached robustness diagnostics and reviewer recommendations for each finding.
 *   Bayesian scenario-based canopy forecast (2024–2028) under Severe Drought / Climate Recovery soil-moisture scenarios.
-*   Interactive web dashboard for sponsor and stakeholder use.
+*   Interactive web dashboard for sponsor and stakeholder use, including a visualization gallery.
+*   Field data-collection application for individually surveyed trees, with photo capture (Section 6.1).
+*   Sponsor requirements specification and data dictionary for the tallest-tree map / height-range database (Section 6.2).
 
 ### Intermediate outputs:
 
@@ -193,17 +227,27 @@ All data acquisition and processing runs as versioned, parameterized AWS SageMak
 ## 8. Limitations and Assumptions
 
 *   **Small jurisdiction count (N=9–10):** Nearly every statistical model in this study operates at or near the boundary of what is estimable given available degrees of freedom. Findings are labeled, throughout, as hypothesis-generating rather than confirmatory, and each carries an explicit robustness assessment rather than a bare p-value.
-*   **GEDI 2-meter canopy height filter (see Section 4.4):** This is a deliberate, disclosed choice favoring functional canopy over total vegetative cover; sensitivity to this threshold is expected to be larger in urbanizing areas than in rural forested jurisdictions.
+*   **GEDI 2-meter canopy height filter (see Section 4.5):** This is a deliberate, disclosed choice favoring functional canopy over total vegetative cover; sensitivity to this threshold is expected to be larger in urbanizing areas than in rural forested jurisdictions.
 *   **CDC PLACES health data is single-year (2023) and cross-sectional:** This is not a true time series at the county level for this study's window — this is why health-outcome regressions use a cross-sectional rather than panel specification, and why they cannot support the same kind of within-jurisdiction change analysis as canopy or crime data.
 *   **SMAP's 9 km resolution:** This is appropriate for county/landscape-scale time-series analysis, not intra-city spatial resolution — the entire City of Charlottesville falls within 1–2 SMAP pixels.
 *   **Vendor LiDAR classification quality varies by acquisition vintage:** Where vendor vegetation classification was absent (common in some 2015-era deliveries), this study substitutes a height-above-ground-derived classification, tracked and reported per tile so results relying on this fallback are distinguishable from vendor-classified results.
 *   **Jurisdiction data coverage is not fully uniform:** Not every jurisdiction has data for every year/metric combination (e.g., Buckingham lacks GEDI Level 2B cover data in the current extraction; Charlottesville's GEDI record has gap years). These gaps are handled explicitly (calendar-aware, not positional) rather than silently interpolated.
+*   **Two jurisdictions do not yet render on the interactive map:** Augusta and Rockingham's underlying canopy/soil-moisture data exists, but the corresponding boundary files for the map view have not yet been uploaded to the mapping service — a known, tracked gap, not a data availability issue.
 
 ## 9. Next Steps
 
-*   Confirm scope/timing with the sponsor and faculty advisor for the recommended GEDI height-filter sensitivity table (Section 4.4) as a report appendix — no new data acquisition required.
-*   Complete SageMaker processing runs for all nine counties (in progress at time of writing) and finalize dashboard rollout.
-*   Formal internal review pass over all flagged/fragile regression findings (Section 4.2) before any are cited in sponsor-facing materials.
+*   Confirm scope/timing with the sponsor and faculty advisor for the recommended GEDI height-filter sensitivity table (Section 4.5) as a report appendix — no new data acquisition required.
+*   Finalize dashboard rollout for the two jurisdictions not yet rendering on the map (Augusta, Rockingham — Section 8).
+*   Implement the height-range aggregation database and the filtered digital map for highest-range trees (Section 6.2) — the data dictionary and underlying source data are ready; these two components are not yet built.
+*   Formal internal review pass over all flagged/fragile regression findings (Section 4.3) before any are cited in sponsor-facing materials.
 *   Engage RCA and relevant SWCDs directly with sub-watershed-level canopy decline findings, per Section 5.
+*   ●	Ground Truthing of Satellite data:  This essential step is needed to calibrate algorithms to provide a “gold standard” training dataset for Machine Learning and AI models to accurately learn what different tree densities look like from space.  For tree canopy and cover, this process involves sending foresters or researchers to specific coordinate locations to physically measure tree heights, canopy diameters, trunk counts and species types.
+*   Begin scoping the Invasive Species Management workstream (Section 5.3), including acquisition of multispectral/hyperspectral imagery and invasive-species occurrence data.
 
-**Draft prepared for internal team review.** Sections 4.2 (statistical robustness framework), 4.3 (Bayesian forecasting), and the technical infrastructure described in Section 6 reflect implementation work completed and tested as part of this capstone; all other sections reflect the sponsor's original proposal scope and the team's response framework.
+**Progress note:** SageMaker processing runs for all nine counties are now complete, confirmed by real per-county tree-crown centroid file counts (ranging from 25 files for Charlottesville to 2,160 for Louisa) produced during a subsequent data-format migration utility run — no county returned zero files.
+
+## 10. Acknowledgements
+
+The team thanks Amiri Hayes and Elijah Strait, Agricair interns, for their contributions to this project.
+
+**Draft prepared for internal team review.** Sections 4.3 (statistical robustness framework), 4.4 (Bayesian forecasting), 6.1 (field data collection), and the technical infrastructure described in Section 6 reflect implementation work completed and tested as part of this capstone; all other sections reflect the sponsor's original proposal scope and the team's response framework.
