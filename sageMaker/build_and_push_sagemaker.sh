@@ -16,7 +16,7 @@
 #
 # Usage:
 #   chmod +x build_and_push_sagemaker.sh
-#   ./build_and_push_sagemaker.sh
+#   ./build_and_push_sagemaker.sh 
 #
 # After a successful push, copy the printed IMAGE_URI into launch_sagemaker_job.py
 # ══════════════════════════════════════════════════════════════════════════════
@@ -24,9 +24,11 @@
 set -euo pipefail
 
 # Configuration
-IMAGE_NAME="lidar-processor"
+#IMAGE_NAME="lidar-processor"
+IMAGE_NAME="loudoun-gedi-processor"
 IMAGE_TAG="latest"
-DOCKERFILE="Dockerfile.sagemaker-lidar"
+#DOCKERFILE="Dockerfile.sagemaker-lidar"
+DOCKERFILE="Dockerfile.sagemaker-loudoun-gedi"
 
 # Resolve account ID and region dynamically from the current AWS CLI profile
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -37,7 +39,7 @@ ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 FULL_IMAGE_URI="${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 echo "============================================================"
-echo "  SageMaker LiDAR Image Build & Push"
+echo "  SageMaker LiDAR / GEDI Image Build & Push"
 echo "============================================================"
 echo "  Account  : ${ACCOUNT_ID}"
 echo "  Region   : ${REGION}"

@@ -1,0 +1,171 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Dockerfile.loudoun-gedi-canopy
+# Custom SageMaker Processing Image for Loudoun GEDI L2A/L2B Canopy Pipeline
+#
+# Base: python:3.11-slim (plain, multi-arch, current Python)
+# Adds: earthaccess, h5py, scipy, rasterio
+#
+# CORRECTED from the prior version of this file, which was missing
+# earthaccess (the actual reason this image needed updating) and scipy /
+# rasterio (both hard requirements of interpolate_chm_raster() in
+# process_loudoun_canopy_gedi_sagemaker.py -- scipy.interpolate.griddata
+# and rasterio's GeoTIFF writer). It also carried geopandas, xarray,
+# netCDF4, pyarrow, and s3fs, none of which this script imports -- those
+# appear to have been copied from the separate GEDI-from-S3 pipeline
+# (process_gedi02A_from_s3.py / process_gedi02B_from_s3.py), which does
+# spatial joins to jurisdiction boundaries, SMAP-grid NetCDF export, and
+# Parquet output. If this image is meant to serve both pipelines, add
+# those back; as scoped to just the Loudoun canopy script, they're dead
+# weight -- along with the system libraries (libgdal-dev, gdal-bin,
+# libgeos-dev, libproj-dev, libnetcdf-dev, libspatialindex-dev) that
+# existed only to support them.
+#
+# NOTE on base image choice: this does NOT use the sagemaker-scikit-learn
+# base image (unlike Dockerfile.sagemaker-lidar), for three reasons found
+# during initial build testing:
+#   1. The GEDI pipeline never actually uses scikit-learn -- that base image
+#      was only reused from the LiDAR Dockerfile for consistency, and turned
+#      out to be the wrong choice here.
+#   2. The pinned boto stack this pipeline requires (botocore==1.43.0,
+#      boto3==1.43.0) needs Python >=3.10. sagemaker-scikit-learn:1.0-1-cpu-py3
+#      is a Python 3.8 image -- pip fails with "No matching distribution
+#      found for botocore==1.43.0" because no such build exists for 3.8.
+#   3. sagemaker-scikit-learn:1.0-1-cpu-py3 is amd64-only. On Apple Silicon
+#      (arm64) builds, Docker has to emulate it, which is a second source of
+#      pain once C-extension packages (h5py, rasterio) enter the picture.
+#      python:3.11-slim is a proper multi-arch image (amd64 + arm64), so
+#      Docker pulls the native architecture with no emulation and no
+#      separate AWS-account ECR login required (unlike the SageMaker-owned
+#      registry, this one's on Docker Hub).
+#
+# SageMaker Processing Jobs support "bring your own container" -- the image
+# does not need to descend from any SageMaker-branded base image. Only
+# requirement: it can run the given command against files mounted at
+# /opt/ml/processing/...
+#
+# Build & push:
+#   bash build_and_push_sagemaker.sh loudoun-gedi
+#
+# Use in launch_gedi_canopy_job.py:
+#   IMAGE_URI = "<account_id>.dkr.ecr.us-east-1.amazonaws.com/loudoun-gedi-processor:latest"
+# ══════════════════════════════════════════════════════════════════════════════
+
+FROM python:3.11-slim
+
+LABEL maintainer="Loudoun County Tree Canopy Project"
+LABEL description="SageMaker Processing image for Loudoun County GEDI L2A/L2B canopy height/cover pipeline"
+LABEL version="1.2"
+
+# System dependencies
+# libhdf5-dev            : native HDF5 library backing h5py (pip's h5py wheel
+#                          normally bundles its own libhdf5, but this guards
+#                          against falling back to a source build on an
+#                          unusual platform combination)
+# build-essential/cmake  : compiler toolchain for any source builds
+# curl/git               : general utilities
+#
+# Deliberately NOT installed (see header note): libgdal-dev, gdal-bin,
+# libgeos-dev, libproj-dev, libnetcdf-dev, libspatialindex-dev -- those
+# supported geopandas/xarray/netCDF4, which this script doesn't use.
+# rasterio's PyPI wheel bundles its own GDAL, so no system GDAL is needed
+# for it either.
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        libhdf5-dev \
+        build-essential \
+        cmake \
+        curl \
+        git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ── Pinned boto stack ─────────────────────────────────────────────────────────
+# This exact combination was discovered necessary in the original notebook
+# (see process_gedi_from_s3.ipynb / process_gedi02_B_from_s3.ipynb Cell 1),
+# where it was installed with --force-reinstall --no-deps. That flag was
+# needed there because the OLD base image (sagemaker-scikit-learn) came with
+# its own pre-installed, conflicting boto3/botocore versions -- without
+# --no-deps, pip's resolver would try to satisfy those already-installed
+# packages rather than upgrade to the versions requested.
+#
+# python:3.11-slim has nothing pre-installed, so that conflict doesn't exist
+# here. --no-deps is intentionally NOT used below: with nothing to fight
+# over, plain pip install lets pip also resolve boto3's genuine required
+# dependencies (s3transfer, jmespath, python-dateutil) correctly. Using
+# --no-deps here was stripping those out entirely, causing:
+#   ModuleNotFoundError: No module named 's3transfer'
+#
+# s3fs removed: this script reads/writes local files and uploads to S3 via
+# plain boto3 (upload_file); it never opens an HDF5 file directly from S3,
+# so there's no fsspec/s3fs filesystem layer involved.
+#
+# If you ever need to bump these, re-verify against a real S3 read/list
+# operation before deploying -- don't just bump and assume compatibility.
+
+# Combine everything into one layer to let the pip resolver enforce the pins
+
+# To mitigate the following error:
+#     ERROR [5/5] RUN python3 -c "import boto3; import botocore; import earthaccess; import h5py; import scipy; import rasterio; import numpy; assert boto3.__version__ == '1.43.0', f'boto3 pin violat  2.3s 
+# ------                                                                                                                                                                                                      
+#  > [5/5] RUN python3 -c "import boto3; import botocore; import earthaccess; import h5py; import scipy; import rasterio; import numpy; assert boto3.__version__ == '1.43.0', f'boto3 pin violated: {boto3.__version__}'; assert botocore.__version__ == '1.43.0', f'botocore pin violated: {botocore.__version__}'; print('All required packages imported successfully, pinned boto stack intact.'); print(f'  boto3       : {boto3.__version__}'); print(f'  botocore    : {botocore.__version__}'); print(f'  earthaccess : {earthaccess.__version__}'); print(f'  h5py        : {h5py.__version__}'); print(f'  scipy       : {scipy.__version__}'); print(f'  rasterio    : {rasterio.__version__}'); print(f'  numpy       : {numpy.__version__}'); ":                                                                                      
+# 2.161 Traceback (most recent call last):
+# 2.161   File "<string>", line 1, in <module>
+# 2.162 AssertionError: boto3 pin violated: 1.43.75
+
+RUN pip install --no-cache-dir \
+    "botocore==1.43.0" \
+    "boto3==1.43.0" \
+    "earthaccess" \
+    "h5py" \
+    "scipy" \
+    "rasterio" \
+    "numpy"
+
+#RUN pip install --no-cache-dir \
+#    "botocore==1.43.75" \
+#    "boto3==1.43.75"
+
+# ── Remaining Python dependencies ────────────────────────────────────────────
+#   earthaccess : NASA Earthdata search + download (GEDI02_A / GEDI02_B)
+#   h5py        : GEDI L2A/L2B HDF5 granule reading
+#   scipy       : scipy.interpolate.griddata, used to grid sparse GEDI shots
+#                 into the CHM raster
+#   rasterio    : GeoTIFF writer for the interpolated CHM output
+#   numpy       : array operations (not pre-installed in python:3.11-slim,
+#                 unlike the old scikit-learn base image -- installed explicitly here)
+# RUN pip install --no-cache-dir \
+#     "earthaccess" \
+#     "h5py" \
+#     "scipy" \
+#     "rasterio" \
+#     "numpy"
+
+# Build-time import verification
+# Fail the Docker build immediately if any required package cannot be
+# imported, or if the pinned boto stack got silently overridden.
+RUN python3 -c "\
+import boto3; \
+import botocore; \
+import earthaccess; \
+import h5py; \
+import scipy; \
+import rasterio; \
+import numpy; \
+assert boto3.__version__ == '1.43.0', f'boto3 pin violated: {boto3.__version__}'; \
+assert botocore.__version__ == '1.43.0', f'botocore pin violated: {botocore.__version__}'; \
+print('All required packages imported successfully, pinned boto stack intact.'); \
+print(f'  boto3       : {boto3.__version__}'); \
+print(f'  botocore    : {botocore.__version__}'); \
+print(f'  earthaccess : {earthaccess.__version__}'); \
+print(f'  h5py        : {h5py.__version__}'); \
+print(f'  scipy       : {scipy.__version__}'); \
+print(f'  rasterio    : {rasterio.__version__}'); \
+print(f'  numpy       : {numpy.__version__}'); \
+"
+
+# SageMaker invocation
+# ScriptProcessor supplies the run command explicitly (command=["python3"]
+# plus the script path/arguments at .run() time) -- this doesn't depend on
+# the base image having any SageMaker-specific entrypoint/toolkit baked in,
+# which is part of why a plain python:3.11-slim image works fine here.
+

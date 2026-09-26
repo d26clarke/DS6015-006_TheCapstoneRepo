@@ -17,6 +17,9 @@ established for `Dockerfile.sagemaker-lidar` / `lidar-processor`.
 - Your AWS account ID and target region (`us-east-1`, matching the base image
   and existing LiDAR setup).
 - `Dockerfile.sagemaker-gedi` present in your build context directory.
+- `TBD`
+
+
 
 Set these once so the commands below can be copy-pasted as-is:
 
@@ -48,6 +51,29 @@ aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$AWS_REG
 
 aws ecr describe-repositories --repository-names "gedi-processor" --region "us-east-1"
 ```
+
+## 1a. Create secret for earthaccess credentials (one-time) -- Create AWS Policy earthdata-access-for-tree-canopy-processes
+
+```bash
+aws secretsmanager create-secret \
+    --name earthdata-credentials \
+    --secret-string '{"username":"...","password":"..."}' \
+    --region "$AWS_REGION"
+
+aws secretsmanager create-secret --name earthdata-credentials --secret-string '{"username":"...","password":"..."}' --region "us-east-1"
+```
+
+aws secretsmanager create-secret --name earthdata-credentials --secret-string '{"username":"...","password":"..."}'
+
+I executed the following AWS CLI command using my earthdata credentials
+
+aws secretsmanager create-secret --name earthdata-credentials --secret-string '{"username":"...","password":"..."}' --region "us-east-1"
+{
+    "ARN": "arn:aws:secretsmanager:us-east-1:389548781850:secret:earthdata-credentials-iV3ekN",
+    "Name": "earthdata-credentials",
+    "VersionId": "fbc0bc64-6f51-4089-9fd8-0bb9caabe8bd"
+}
+
 
 ---
 
